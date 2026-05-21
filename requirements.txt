@@ -1,0 +1,7 @@
+langgraph
+anthropic
+google-generativeai
+PyGithub
+python-dotenv
+yfinance
+pandas
