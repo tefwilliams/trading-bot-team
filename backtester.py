@@ -3,6 +3,7 @@ import tempfile
 import os
 import logging
 import sys
+import re
 from github_utils import GitHubManager
 from state import AgentState
 
@@ -52,15 +53,27 @@ def backtester_node(state: AgentState):
             [sys.executable, tmp_path], capture_output=True, text=True, timeout=120
         )
 
-        report = "### 📊 Backtest Results\n\n"
+        # Parse metrics from stdout using regex
+        metrics = {
+            "Total Return": re.search(r"Total Return:\s+([\d\.-]+%)", result.stdout),
+            "Max Drawdown": re.search(r"Max Drawdown:\s+([\d\.-]+%)", result.stdout),
+            "Sharpe Ratio": re.search(r"Sharpe Ratio:\s+([\d\.-]+)", result.stdout),
+        }
+
+        report = "### 📊 Backtest Execution Report\n\n"
+        report += "| Metric | Value |\n| :--- | :--- |\n"
+        for label, match in metrics.items():
+            val = match.group(1) if match else "Not Found"
+            report += f"| {label} | **{val}** |\n"
+
         if result.stdout:
-            report += f"**Output:**\n```\n{result.stdout}\n```\n"
+            report += f"\n<details>\n<summary>View Full Console Output</summary>\n\n```\n{result.stdout}\n```\n</details>\n"
         if result.stderr:
-            report += f"**Errors/Warnings:**\n```\n{result.stderr}\n```"
+            report += f"\n#### ⚠️ Standard Error/Warnings\n```\n{result.stderr}\n```"
 
         github.post_comment(issue_number, report)
 
-        # Successful run: Hand over to the Human Manager for final review
+        # Transition to Manager for final sign-off and PR merge
         github.transition_role(issue_number, "manager", "stage:review")
 
     except subprocess.TimeoutExpired:

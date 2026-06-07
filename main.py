@@ -8,6 +8,7 @@ from engineer import engineer_node
 from reviewer import reviewer_node
 from risk_manager import risk_manager_node
 from backtester import backtester_node
+from historian import historian_node
 
 # Configure logging for professional visibility into agent actions
 logging.basicConfig(
@@ -26,6 +27,7 @@ def create_graph():
     workflow.add_node("reviewer", reviewer_node)
     workflow.add_node("risk_manager", risk_manager_node)
     workflow.add_node("backtester", backtester_node)
+    workflow.add_node("historian", historian_node)
 
     # Route to the correct node based on the current role in state
     workflow.add_conditional_edges(
@@ -37,6 +39,7 @@ def create_graph():
             "reviewer": "reviewer",
             "risk_manager": "risk_manager",
             "backtester": "backtester",
+            "historian": "historian",
         },
     )
 
@@ -45,6 +48,7 @@ def create_graph():
     workflow.add_edge("reviewer", END)
     workflow.add_edge("risk_manager", END)
     workflow.add_edge("backtester", END)
+    workflow.add_edge("historian", END)
 
     return workflow.compile()
 
@@ -60,6 +64,7 @@ def run_orchestrator():
         try:
             # Process each role in a standardized loop
             roles = [
+                "historian",
                 "backtester",
                 "researcher",
                 "engineer",

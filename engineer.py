@@ -33,6 +33,7 @@ def engineer_node(state: AgentState):
     2. Use `pandas` for data manipulation and signal generation.
     3. Implement the Entry and Exit rules exactly as described.
     4. Implement the Position Sizing logic.
+    5. **INTERFACE REQUIREMENT**: Encapsulate the logic so that it can be imported. Provide a `run_backtest()` function and a `generate_signals(data)` function.
     5. Include a backtesting loop that calculates performance metrics: Total Return, Max Drawdown, and Sharpe Ratio.
     6. Ensure the code is clean, commented, and standalone.
     7. Use vectorized operations where possible for performance.

@@ -26,5 +26,6 @@ A personal learning project: a simple algorithmic trading bot built as a team of
 
 ## Next steps
 
-1. Implement automated strategy performance tracking (Historian node).
-2. Integrate Alpaca API for paper trading execution.
+1. **Portfolio Manager:** Build a script that parses the `performance_manifest.csv` and selects strategies based on Sharpe/Volatility.
+2. **Unified Execution Engine:** Develop a wrapper to run multiple strategies in parallel against live/paper market data.
+3. **Alpaca Integration:** Connect the execution engine to Alpaca for real-time paper trading.

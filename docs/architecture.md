@@ -9,6 +9,11 @@ A multi-agent team that researches, implements, and reviews trading strategies. 
 - **Learning goal is multi-agent orchestration**, not building a profitable trader. The trading domain is just a concrete substrate for the agent patterns.
 - **Stateful workflow with human approval gates** matches how AI agents are typically used at work, so the patterns transfer.
 
+## The Two-Tier System
+
+1. **Strategy Factory (The Agents):** This is the current LangGraph workflow. It produces vetted, backtested Python modules stored in `/strategies`.
+2. **Execution Engine (The Combined Bot):** A master script that dynamically loads approved strategies from the `performance_manifest.csv`, handles portfolio-level risk, and executes trades via a unified API (e.g., Alpaca).
+
 ## Framework: LangGraph
 
 Chosen over alternatives because:
