@@ -59,3 +59,20 @@ class GitHubManager:
 
     def create_issue(self, title: str, body: str, labels: list[str]):
         return self.repo.create_issue(title=title, body=body, labels=labels)
+
+    def get_latest_code_block(self, issue_number: int):
+        """Extracts the most recent Python code block from the issue or its comments."""
+        issue = self.get_issue(issue_number)
+        comments = list(issue.get_comments())
+        # Search comments in reverse order (most recent first)
+        for comment in reversed(comments):
+            if "```python" in comment.body:
+                start = comment.body.find("```python") + 9
+                end = comment.body.find("```", start)
+                return comment.body[start:end].strip()
+        # Fallback to issue body
+        if "```python" in issue.body:
+            start = issue.body.find("```python") + 9
+            end = issue.body.find("```", start)
+            return issue.body[start:end].strip()
+        return None

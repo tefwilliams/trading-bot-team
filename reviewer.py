@@ -55,26 +55,17 @@ def reviewer_node(state: AgentState):
     if "[APPROVED]" in content.upper():
         # If we approved a spec, it goes to Engineer. If we approved code, it goes to Backtest/Manager.
         is_code = "```python" in thread_context or "```python" in content
-        next_role = "product_manager"
-        next_stage = "stage:final-review" if is_code else "stage:approved-spec"
+        next_role = "backtester" if is_code else "engineer"
+        next_stage = "stage:backtest" if is_code else "stage:approved-spec"
 
-        github.update_labels(
-            state["issue_number"],
-            add=[f"role:{next_role}", next_stage],
-            remove=["role:reviewer", "stage:review"],
-        )
+        github.transition_role(state["issue_number"], next_role, next_stage)
     else:
         # Rejected: Kick back to whoever did the work
         # We check the thread to see who to blame
         is_code = "```python" in thread_context
         next_role = "engineer" if is_code else "researcher"
         next_stage = "stage:implementation" if is_code else "stage:proposal"
-
-        github.update_labels(
-            state["issue_number"],
-            add=[f"role:{next_role}", next_stage],
-            remove=["role:reviewer", "stage:review"],
-        )
+        github.transition_role(state["issue_number"], next_role, next_stage)
 
     return {
         "messages": [
