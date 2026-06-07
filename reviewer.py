@@ -43,6 +43,10 @@ def reviewer_node(state: AgentState):
 
     response = llm.invoke(prompt)
     content = response.content
+    if isinstance(content, list):
+        content = "\n".join(
+            [part["text"] for part in content if part["type"] == "text"]
+        )
 
     # Post the critique to GitHub
     github.post_comment(state["issue_number"], f"### 🧐 Reviewer Feedback\n\n{content}")

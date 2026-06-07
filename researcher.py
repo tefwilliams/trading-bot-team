@@ -40,9 +40,14 @@ def researcher_node(state: AgentState):
 
     # Thinking model will generate reasoning + response
     response = llm.invoke(prompt)
+    content = response.content
+    if isinstance(content, list):
+        content = "\n".join(
+            [part["text"] for part in content if part["type"] == "text"]
+        )
 
     # Post the proposal as a comment
-    github.post_comment(state["issue_number"], response.content)
+    github.post_comment(state["issue_number"], content)
 
     # Transition the ticket: Researcher -> Reviewer
     github.update_labels(

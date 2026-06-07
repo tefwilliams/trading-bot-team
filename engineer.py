@@ -32,12 +32,17 @@ def engineer_node(state: AgentState):
 
     # The thinking model will generate the reasoning logic before the final code block
     response = llm.invoke(prompt)
+    content = response.content
+    if isinstance(content, list):
+        content = "\n".join(
+            [part["text"] for part in content if part["type"] == "text"]
+        )
 
     # Post the implementation as a structured comment
     comment_body = (
         f"### 🤖 Engineer implementation generated\n\n"
         f"I have translated the strategy specification into code:\n\n"
-        f"{response.content}\n\n"
+        f"{content}\n\n"
         f"**Next Steps:** This implementation is ready for review and backtest validation."
     )
     github.post_comment(state["issue_number"], comment_body)
