@@ -2,7 +2,8 @@
 
 ## Manager (human)
 
-The user. Directs the team via GitHub Issues — opens high-level objectives, approves or rejects proposals, decides when to merge or kick back work.
+The user. Acts as the **Strategic Product Manager**. 
+Directs the team via GitHub Issues — generates high-level strategy objectives, defines product vision, approves/rejects proposals, and performs final PR merges.
 
 ## Researcher
 
