@@ -15,7 +15,7 @@ def get_llm(role: str):
     model_name = "gemini-3.1-flash-lite"
 
     # Researchers and Engineers get the more creative model to help with ideation and problem-solving
-    if role.lower() in ["researcher", "engineer", "product_manager"]:
+    if role.lower() in ["researcher", "engineer"]:
         return ChatGoogleGenerativeAI(
             model=model_name,
             temperature=0.7,  # Thinking models often benefit from slight temperature

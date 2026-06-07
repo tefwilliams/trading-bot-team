@@ -67,7 +67,10 @@ def product_manager_node(state: AgentState):
         )
 
     # If not completed, it likely needs human manager intervention or moves back to ideation
-    if "[ISSUE_COMPLETE]" not in content.upper():
+    if (
+        "[READY_FOR_MERGE]" not in content.upper()
+        and "[NEW_ISSUE]" not in content.upper()
+    ):
         github.update_labels(
             state["issue_number"],
             add=["role:manager", "stage:review"],

@@ -18,10 +18,9 @@ This document defines the standard operating procedure for developing new tradin
 ## Phase 3: Validation
 1. **Reviewer (AI)** critiques the code in the PR.
 2. **Backtester (Deterministic)** executes the code and posts performance metrics.
-3. **Product Manager (AI)** analyzes the metrics and objective, then moves to `role:manager` for final sign-off.
+3. **Manager (Human)** analyzes the metrics and code for final sign-off.
 
 ## Phase 4: Integration
 1. **Manager (Human)** performs the final code review on the PR.
 2. **Manager (Human)** merges the PR. 
     - *Note: Merging automatically closes the issue via the "Closes #X" keyword.*
-3. **Product Manager (AI)** can then be triggered on a new issue to suggest the next iteration or feature based on these results.

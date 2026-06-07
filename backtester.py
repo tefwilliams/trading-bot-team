@@ -35,8 +35,14 @@ def backtester_node(state: AgentState):
     with tempfile.NamedTemporaryFile(
         suffix=".py", delete=False, mode="w", encoding="utf-8"
     ) as tmp:
-        # Force non-interactive backend to prevent plt.show() from hanging the subprocess
+        # Setup environment for headless/automated execution
         tmp.write("import matplotlib\nmatplotlib.use('Agg')\n")
+        # Disable yfinance persistent cache to avoid SQLite 'database is locked' errors
+        tmp.write("import yfinance as yf\n")
+        tmp.write(
+            "try:\n    yf.set_tz_cache_location(None)\nexcept Exception:\n    pass\n"
+        )
+
         tmp.write(code)
         tmp_path = tmp.name
 
@@ -54,8 +60,8 @@ def backtester_node(state: AgentState):
 
         github.post_comment(issue_number, report)
 
-        # Successful run: Hand over to Product Manager for final synthesis
-        github.transition_role(issue_number, "product_manager", "stage:final-review")
+        # Successful run: Hand over to the Human Manager for final review
+        github.transition_role(issue_number, "manager", "stage:review")
 
     except subprocess.TimeoutExpired:
         github.post_comment(
