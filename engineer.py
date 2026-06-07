@@ -33,10 +33,14 @@ def engineer_node(state: AgentState):
     2. Use `pandas` for data manipulation and signal generation.
     3. Implement the Entry and Exit rules exactly as described.
     4. Implement the Position Sizing logic.
-    5. **INTERFACE REQUIREMENT**: Encapsulate the logic so that it can be imported. Provide a `run_backtest()` function and a `generate_signals(data)` function.
-    5. Include a backtesting loop that calculates performance metrics: Total Return, Max Drawdown, and Sharpe Ratio.
-    6. Ensure the code is clean, commented, and standalone.
-    7. Use vectorized operations where possible for performance.
+    5. **INTERFACE REQUIREMENT**: The code must be modular for a multi-strategy engine.
+       - Provide a `generate_signals(data: pd.DataFrame) -> pd.Series` function.
+       - This function must return a Series of signals (1 for Long, 0 for Flat, -1 for Short) indexed by timestamp.
+       - All indicator calculations (RSI, SMA, etc.) must be contained or called within this function.
+       - Provide a `run_backtest()` function that loads data and calls `generate_signals`.
+    6. Include a backtesting loop that calculates performance metrics: Total Return, Max Drawdown, and Sharpe Ratio.
+    7. Ensure the code is clean, commented, and standalone.
+    8. Use vectorized operations where possible for performance.
     
     IMPORTANT: Save the strategy to `strategies/strategy_{state["issue_number"]}.py`.
     IMPORTANT: If there is previous feedback or a rejected implementation in the history, you MUST address the specific critiques and fix the bugs identified.

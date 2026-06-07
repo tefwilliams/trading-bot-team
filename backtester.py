@@ -4,10 +4,40 @@ import os
 import logging
 import sys
 import re
+import ast
 from github_utils import GitHubManager
 from state import AgentState
 
 logger = logging.getLogger(__name__)
+
+def validate_interface(code: str) -> list[str]:
+    """
+    Uses static analysis to verify the strategy follows the required interface.
+    Returns a list of error messages (empty if valid).
+    """
+    errors = []
+    try:
+        tree = ast.parse(code)
+        functions = {node.name: node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)}
+        
+        # Check for generate_signals
+        if "generate_signals" not in functions:
+            errors.append("Missing required function: `generate_signals(data)`")
+        else:
+            sig = functions["generate_signals"]
+            if len(sig.args.args) != 1:
+                errors.append("`generate_signals` must accept exactly one argument: `data`")
+                
+        # Check for run_backtest
+        if "run_backtest" not in functions:
+            errors.append("Missing required function: `run_backtest()`")
+            
+    except SyntaxError as e:
+        errors.append(f"Syntax Error in generated code: {e}")
+    except Exception as e:
+        errors.append(f"Interface validation failed with error: {str(e)}")
+        
+    return errors
 
 
 def backtester_node(state: AgentState):
@@ -19,6 +49,19 @@ def backtester_node(state: AgentState):
     issue_number = state["issue_number"]
 
     code = github.get_latest_code_block(issue_number)
+
+    # Step 1: Structural Validation
+    interface_errors = validate_interface(code)
+    if interface_errors:
+        error_msg = "### ❌ Interface Validation Failed\n"
+        error_msg += "The generated code does not follow the required modular interface:\n\n"
+        for err in interface_errors:
+            error_msg += f"- {err}\n"
+        error_msg += "\n**Note to Engineer:** Please ensure your code includes the required `generate_signals` and `run_backtest` functions."
+        
+        github.post_comment(issue_number, error_msg)
+        github.transition_role(issue_number, "engineer", "stage:implementation")
+        return {"messages": ["Backtester failed interface validation"]}
 
     if not code:
         github.post_comment(
