@@ -22,6 +22,7 @@ A personal learning project: a simple algorithmic trading bot built as a team of
 - [`docs/roles.md`](docs/roles.md) — agent role definitions and model assignments
 - [`docs/ticket-schema.md`](docs/ticket-schema.md) — planned GitHub Issues schema
 - [`docs/setup.md`](docs/setup.md) — how to set up a dev machine
+- `docs/prompts/pm_ideation.md` — prompt for strategy ideation & system context
 
 ## Next steps
 
