@@ -34,7 +34,7 @@ def product_manager_node(state: AgentState):
     - If improvements are needed or a new feature is inspired by this result, conclude with [NEW_ISSUE] followed by a title and description.
     - If this is 'ideation', propose 1-2 concrete features.
 
-    Format your response clearly. Use [ISSUE_COMPLETE] or [NEW_ISSUE] as headers if taking those actions.
+    Format your response clearly. Use [READY_FOR_MERGE] or [NEW_ISSUE] as headers if taking those actions.
     """
 
     response = llm.invoke(prompt)

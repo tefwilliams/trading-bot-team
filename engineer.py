@@ -37,10 +37,11 @@ def engineer_node(state: AgentState):
        - Provide a `generate_signals(data: pd.DataFrame) -> pd.Series` function.
        - This function must return a Series of signals (1 for Long, 0 for Flat, -1 for Short) indexed by timestamp.
        - All indicator calculations (RSI, SMA, etc.) must be contained or called within this function.
-       - Provide a `run_backtest()` function that loads data and calls `generate_signals`.
+       - Provide a `run_backtest()` function (with no arguments) that loads data and calls `generate_signals`.
     6. Include a backtesting loop that calculates performance metrics: Total Return, Max Drawdown, and Sharpe Ratio.
     7. Ensure the code is clean, commented, and standalone.
-    8. Use vectorized operations where possible for performance.
+    8. Handle potential errors gracefully (e.g., failed data downloads, empty DataFrames, division by zero).
+    9. Use vectorized operations where possible for performance.
     
     IMPORTANT: Save the strategy to `strategies/strategy_{state["issue_number"]}.py`.
     IMPORTANT: If there is previous feedback or a rejected implementation in the history, you MUST address the specific critiques and fix the bugs identified.

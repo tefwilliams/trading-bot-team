@@ -38,6 +38,10 @@ def validate_interface(code: str) -> list[str]:
         # Check for run_backtest
         if "run_backtest" not in functions:
             errors.append("Missing required function: `run_backtest()`")
+        else:
+            sig = functions["run_backtest"]
+            if len(sig.args.args) != 0:
+                errors.append("`run_backtest` must accept no arguments.")
 
     except SyntaxError as e:
         errors.append(f"Syntax Error in generated code: {e}")
@@ -91,9 +95,9 @@ def backtester_node(state: AgentState):
         # Setup environment for headless/automated execution
         tmp.write("import matplotlib\nmatplotlib.use('Agg')\n")
         # Disable yfinance persistent cache to avoid SQLite 'database is locked' errors
-        tmp.write("import yfinance as yf\n")
+        tmp.write("import yfinance as yf\nimport tempfile\n")
         tmp.write(
-            "try:\n    yf.set_tz_cache_location(None)\nexcept Exception:\n    pass\n"
+            "try:\n    yf.set_tz_cache_location(tempfile.gettempdir())\nexcept Exception:\n    pass\n"
         )
 
         tmp.write(code)
