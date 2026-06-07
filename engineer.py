@@ -36,6 +36,7 @@ def engineer_node(state: AgentState):
     5. Include a backtesting loop that calculates performance metrics: Total Return, Max Drawdown, and Sharpe Ratio.
     6. Ensure the code is clean, commented, and standalone.
     
+    IMPORTANT: Save the strategy to `strategies/strategy_{issue.number}.py`.
     IMPORTANT: If there is previous feedback or a rejected implementation in the history, you MUST address the specific critiques and fix the bugs identified.
 
     Output ONLY the Python code inside a markdown block.
@@ -76,12 +77,8 @@ def engineer_node(state: AgentState):
     )
     github.post_comment(state["issue_number"], comment_body)
 
-    # Transition the ticket: Engineer -> Reviewer
-    github.update_labels(
-        state["issue_number"],
-        add=["role:reviewer", "stage:review"],
-        remove=["role:engineer", "stage:implementation"],
-    )
+    # Transition the ticket: Engineer -> Reviewer for AI code review
+    github.transition_role(state["issue_number"], "reviewer", "stage:review")
 
     return {
         "messages": [

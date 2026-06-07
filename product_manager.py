@@ -18,10 +18,10 @@ def product_manager_node(state: AgentState):
     labels = [l.name for l in issue.get_labels()]
 
     prompt = f"""
-    You are a Strategic Product Manager for a Quantitative Trading Bot team.
-    Your goal is to oversee the product lifecycle.
+    You are a Strategic Product Manager. Your goal is to oversee the product lifecycle and analyze results.
 
     CURRENT CONTEXT:
+    Issue: #{issue.number}
     Title: {issue.title}
     Initial Request: {issue.body}
     
@@ -30,7 +30,7 @@ def product_manager_node(state: AgentState):
 
     DECISION LOGIC:
     - If this is a 'final-review' (implementation is finished), evaluate if the 'Initial Request' was met.
-    - If the objective is met, conclude with [ISSUE_COMPLETE] and a summary.
+    - If the objective is met, conclude with [READY_FOR_MERGE] and a summary of performance.
     - If improvements are needed or a new feature is inspired by this result, conclude with [NEW_ISSUE] followed by a title and description.
     - If this is 'ideation', propose 1-2 concrete features.
 
@@ -50,13 +50,12 @@ def product_manager_node(state: AgentState):
     )
 
     # Logic for closing/opening issues
-    if "[ISSUE_COMPLETE]" in content.upper():
+    if "[READY_FOR_MERGE]" in content.upper():
         github.update_labels(
             state["issue_number"],
-            add=["stage:done"],
-            remove=["role:product_manager", "stage:final-review", "stage:ideation"],
+            add=["role:manager", "stage:done"],
+            remove=["role:product_manager", "stage:final-review"],
         )
-        github.close_issue(state["issue_number"])
 
     if "[NEW_ISSUE]" in content.upper():
         # Basic parsing of the LLM's suggested new issue
