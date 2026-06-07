@@ -35,6 +35,7 @@ def reviewer_node(state: AgentState):
        - Strategy: Logical flaws, look-ahead bias, unrealistic assumptions, or vague rules.
        - Code: Syntax errors, inefficient pandas usage, missing risk metrics (Sharpe, Drawdown), or divergence from the spec.
     3. Provide a clear 'DECISION': [APPROVED] or [REJECTED].
+    4. Aim for progress. If a strategy is 90% there and the flaws are minor, provide suggestions but consider [APPROVED].
 
     If REJECTED, specify exactly what needs to be fixed.
     If APPROVED, provide a brief summary of why it's ready for the next stage.

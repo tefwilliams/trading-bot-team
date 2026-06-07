@@ -9,6 +9,12 @@ def researcher_node(state: AgentState):
 
     issue = github.get_issue(state["issue_number"])
 
+    # Fetch conversation history so the researcher can see previous feedback
+    comments = list(issue.get_comments())
+    thread_context = "\n\n".join(
+        [f"--- Feedback from {c.user.login} ---\n{c.body}" for c in comments]
+    )
+
     prompt = f"""
     You are a Quantitative Researcher. Your task is to respond to the following objective 
     and propose a formal trading strategy using the Strategy Proposal template.
@@ -16,6 +22,9 @@ def researcher_node(state: AgentState):
     Objective from Manager:
     Title: {issue.title}
     Description: {issue.body}
+
+    CONVERSATION HISTORY / PREVIOUS FEEDBACK:
+    {thread_context}
     
     Please output your proposal in Markdown, following the sections:
     - Hypothesis
@@ -25,6 +34,8 @@ def researcher_node(state: AgentState):
     - Timeframe
     - Position Sizing
     - Risks and Assumptions
+
+    IMPORTANT: If there is previous feedback, you MUST address the specific critiques and improve the strategy accordingly.
     """
 
     # Thinking model will generate reasoning + response
