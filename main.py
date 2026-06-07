@@ -54,71 +54,29 @@ def run_orchestrator():
 
     while True:
         try:
-            # Fetch issues that need attention from the Researcher
-            researcher_tasks = github.get_role_issues("researcher")
-            engineer_tasks = github.get_role_issues("engineer")
-            reviewer_tasks = github.get_role_issues("reviewer")
-            risk_tasks = github.get_role_issues("risk_manager")
+            # Process each role in a standardized loop
+            roles = ["researcher", "engineer", "reviewer", "risk_manager"]
 
-            for issue in researcher_tasks:
-                logger.info(f"Processing Task: [#{issue.number}] {issue.title}")
+            for role in roles:
+                tasks = github.get_role_issues(role)
+                for issue in tasks:
+                    logger.info(
+                        f"Processing {role.upper()} Task: [#{issue.number}] {issue.title}"
+                    )
 
-                # Prepare the initial state for LangGraph
-                initial_state = {
-                    "issue_number": issue.number,
-                    "messages": [
-                        f"System: Commencing workflow for issue #{issue.number}"
-                    ],
-                    "current_role": "researcher",
-                }
+                    initial_state = {
+                        "issue_number": issue.number,
+                        "messages": [f"System: Starting node for {role}"],
+                        "current_role": role,
+                    }
 
-                # Execute the graph
-                app.invoke(initial_state)
-                logger.info(f"Successfully processed issue #{issue.number}")
-
-            for issue in engineer_tasks:
-                logger.info(
-                    f"Processing Engineering Task: [#{issue.number}] {issue.title}"
-                )
-
-                initial_state = {
-                    "issue_number": issue.number,
-                    "messages": [
-                        f"System: Commencing engineering workflow for issue #{issue.number}"
-                    ],
-                    "current_role": "engineer",
-                }
-
-                app.invoke(initial_state)
-                logger.info(f"Successfully processed engineering issue #{issue.number}")
-
-            for issue in reviewer_tasks:
-                logger.info(f"Processing Review Task: [#{issue.number}] {issue.title}")
-
-                initial_state = {
-                    "issue_number": issue.number,
-                    "messages": [
-                        f"System: Commencing review workflow for issue #{issue.number}"
-                    ],
-                    "current_role": "reviewer",
-                }
-
-                app.invoke(initial_state)
-                logger.info(f"Successfully processed review issue #{issue.number}")
-
-            for issue in risk_tasks:
-                logger.info(f"Processing Risk Task: [#{issue.number}] {issue.title}")
-
-                initial_state = {
-                    "issue_number": issue.number,
-                    "messages": [
-                        f"System: Commencing risk review for issue #{issue.number}"
-                    ],
-                    "current_role": "risk_manager",
-                }
-
-                app.invoke(initial_state)
-                logger.info(f"Successfully processed risk issue #{issue.number}")
+                    try:
+                        app.invoke(initial_state)
+                        logger.info(f"Successfully processed issue #{issue.number}")
+                        # Small breather for the API
+                        time.sleep(1)
+                    except Exception as e:
+                        logger.error(f"Failed to process issue #{issue.number}: {e}")
 
         except Exception as e:
             logger.error(f"Error in orchestrator loop: {e}")

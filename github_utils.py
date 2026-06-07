@@ -34,6 +34,20 @@ class GitHubManager:
 
         issue.set_labels(*new_labels)
 
+    def transition_role(self, issue_number: int, new_role: str, new_stage: str):
+        """Standardized way to move a ticket between agents and stages."""
+        issue = self.get_issue(issue_number)
+        current_labels = [l.name for l in issue.get_labels()]
+
+        # Filter out any existing role or stage labels
+        cleaned_labels = [
+            l for l in current_labels if not l.startswith(("role:", "stage:"))
+        ]
+
+        cleaned_labels.append(f"role:{new_role}")
+        cleaned_labels.append(new_stage)
+        issue.set_labels(*cleaned_labels)
+
     def get_role_issues(self, role: str):
         """Find issues where the next action is for a specific role."""
         label = f"role:{role}"
