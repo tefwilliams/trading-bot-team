@@ -104,12 +104,8 @@ class GitHubManager:
         # Search comments in reverse order (most recent first)
         for comment in reversed(comments):
             if "```python" in comment.body:
-                start = comment.body.find("```python") + 9
-                end = comment.body.find("```", start)
-                return comment.body[start:end].strip()
+                return self.extract_code(comment.body)
         # Fallback to issue body
         if "```python" in issue.body:
-            start = issue.body.find("```python") + 9
-            end = issue.body.find("```", start)
-            return issue.body[start:end].strip()
+            return self.extract_code(issue.body)
         return None
