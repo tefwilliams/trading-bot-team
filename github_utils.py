@@ -97,15 +97,48 @@ class GitHubManager:
     def create_issue(self, title: str, body: str, labels: list[str]):
         return self.repo.create_issue(title=title, body=body, labels=labels)
 
+    def get_related_pr(self, issue_number: int):
+        """Finds an open PR associated with the strategy issue branch."""
+        branch_name = f"strat/issue-{issue_number}"
+        # head expects 'owner:branch'
+        pulls = self.repo.get_pulls(
+            state="open", head=f"{self.repo.owner.login}:{branch_name}"
+        )
+        return pulls[0] if pulls.totalCount > 0 else None
+
+    def get_pr_context(self, pr_number: int):
+        """Gathers diff and review comments from a PR."""
+        pr = self.repo.get_pull(pr_number)
+        files = pr.get_files()
+        diff = ""
+        for f in files:
+            diff += f"File: {f.filename}\n{f.patch}\n"
+
+        # PR Review comments are specifically on lines of code
+        reviews = pr.get_review_comments()
+        review_text = "\n".join(
+            [f"{r.user.login} (on {r.path}): {r.body}" for r in reviews]
+        )
+
+        return diff, review_text
+
     def get_latest_code_block(self, issue_number: int):
-        """Extracts the most recent Python code block from the issue or its comments."""
+        """Extracts the Python code from the PR branch if it exists, else from comments."""
+        # 1. Try to fetch from the strategy branch first (where the PR code lives)
+        branch_name = f"strat/issue-{issue_number}"
+        file_path = f"strategies/strategy_{issue_number}.py"
+        try:
+            content = self.repo.get_contents(file_path, ref=branch_name)
+            return content.decoded_content.decode("utf-8")
+        except GithubException:
+            pass
+
+        # 2. Fallback to comments if branch/file doesn't exist
         issue = self.get_issue(issue_number)
         comments = list(issue.get_comments())
-        # Search comments in reverse order (most recent first)
         for comment in reversed(comments):
             if "```python" in comment.body:
                 return self.extract_code(comment.body)
-        # Fallback to issue body
         if "```python" in issue.body:
             return self.extract_code(issue.body)
         return None

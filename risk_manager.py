@@ -16,6 +16,12 @@ def risk_manager_node(state: AgentState):
         [f"--- {c.user.login} ---\n{c.body}" for c in comments]
     )
 
+    # Fetch PR context for code-level risk assessment
+    pr = github.get_related_pr(state["issue_number"])
+    if pr:
+        diff, reviews = github.get_pr_context(pr.number)
+        thread_context += f"\n\n--- PULL REQUEST DIFF (#{pr.number}) ---\n{diff}\n\n--- PR REVIEW COMMENTS ---\n{reviews}"
+
     prompt = f"""
     You are a Professional Risk Manager. Your job is NOT to see if the strategy makes money, 
     but to see if it will lose money safely.
@@ -36,7 +42,9 @@ def risk_manager_node(state: AgentState):
     response = llm.invoke(prompt)
     content = response.content
     if isinstance(content, list):
-        content = "\n".join([part["text"] for part in content if part["type"] == "text"])
+        content = "\n".join(
+            [part["text"] for part in content if part["type"] == "text"]
+        )
 
     github.post_comment(
         state["issue_number"], f"### 🛡️ Risk Manager Assessment\n\n{content}"

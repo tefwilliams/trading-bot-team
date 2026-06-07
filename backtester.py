@@ -35,6 +35,8 @@ def backtester_node(state: AgentState):
     with tempfile.NamedTemporaryFile(
         suffix=".py", delete=False, mode="w", encoding="utf-8"
     ) as tmp:
+        # Force non-interactive backend to prevent plt.show() from hanging the subprocess
+        tmp.write("import matplotlib\nmatplotlib.use('Agg')\n")
         tmp.write(code)
         tmp_path = tmp.name
 

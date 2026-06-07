@@ -18,6 +18,12 @@ def reviewer_node(state: AgentState):
         [f"--- Comment by {c.user.login} ---\n{c.body}" for c in comments]
     )
 
+    # Fetch PR context if an implementation exists
+    pr = github.get_related_pr(state["issue_number"])
+    if pr:
+        diff, reviews = github.get_pr_context(pr.number)
+        thread_context += f"\n\n--- PULL REQUEST DIFF (#{pr.number}) ---\n{diff}\n\n--- PR REVIEW COMMENTS ---\n{reviews}"
+
     prompt = f"""
     You are a Senior Quantitative Reviewer. Your goal is to ensure quality and rigor.
     You are reviewing a task in a trading bot development pipeline.

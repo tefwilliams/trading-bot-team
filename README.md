@@ -5,13 +5,16 @@ A personal learning project: a simple algorithmic trading bot built as a team of
 ## Architecture at a glance
 
 - **Framework:** LangGraph (stateful agent workflows with human-in-the-loop checkpoints)
-- **Models:** Claude (Anthropic) and Gemini (Google), split by role with cross-model review
+- **Models:** Gemini 3.1 Flash Lite (Google) used across all roles for cost-efficiency.
 - **Coordination layer:** GitHub Issues as a ticket board — agents read and write issues, I act as the manager
-- **Data:** `yfinance` for historical data, in-memory backtests to start. Paper trading via Alpaca later.
+- **Workflow:** Pull Request-based implementation loop. Automated backtesting via subprocess execution.
 
 ## Status
 
-Project scaffold and design docs only. No agent code yet.
+**Active Development.** Core orchestration loop is functional.
+- Researcher, Engineer, Reviewer, Risk Manager, and Product Manager agents are implemented.
+- Automated Backtester node is operational.
+- GitHub issue-to-PR workflow is established.
 
 ## Documentation
 
@@ -22,8 +25,5 @@ Project scaffold and design docs only. No agent code yet.
 
 ## Next steps
 
-1. Define GitHub Issues labels and templates (see `docs/ticket-schema.md`)
-2. Write the dual-provider LLM wrapper (`agents/llm.py`)
-3. Build the researcher agent and have it open a strategy proposal issue
-4. Add engineer and reviewer agents
-5. Wire up the LangGraph state machine
+1. Implement automated strategy performance tracking (Historian node).
+2. Integrate Alpaca API for paper trading execution.
