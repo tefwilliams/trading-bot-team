@@ -29,7 +29,9 @@ def engineer_node(state: AgentState):
     {thread_context}
     
     REQUIREMENTS:
-    1. Use `yfinance` to fetch historical data for the specified universe.
+    1. Use `yfinance` to fetch historical data using explicit `start` and `end` dates (formatted as 'YYYY-MM-DD' strings).
+       - ALWAYS specify `interval='1d'` in the download call.
+       - NOTE: Do NOT use intraday intervals (1m, 5m, 15m) as Yahoo Finance limits this to the last 60 days.
     2. Use `pandas` for data manipulation and signal generation.
     3. Implement the Entry and Exit rules exactly as described.
     4. Implement the Position Sizing logic.
@@ -40,7 +42,7 @@ def engineer_node(state: AgentState):
        - Provide a `run_backtest()` function (with no arguments) that loads data and calls `generate_signals`.
     6. Include a backtesting loop that calculates performance metrics: Total Return, Max Drawdown, and Sharpe Ratio.
     7. Ensure the code is clean, commented, and standalone.
-    8. Handle potential errors gracefully (e.g., failed data downloads, empty DataFrames, division by zero).
+    8. **ROBUST DATA HANDLING**: You MUST verify that the downloaded DataFrame is not None and not empty (`df is not None and not df.empty`) before calculating indicators or running the backtest loop. If data is missing, the script should print a clear error and exit gracefully rather than crashing.
     9. Use vectorized operations where possible for performance.
     
     IMPORTANT: Save the strategy to `strategies/strategy_{state["issue_number"]}.py`.

@@ -109,6 +109,34 @@ def backtester_node(state: AgentState):
             [sys.executable, tmp_path], capture_output=True, text=True, timeout=120
         )
 
+        # Detect runtime crashes
+        if result.returncode != 0:
+            error_report = "### ❌ Backtest Runtime Error\n"
+            error_report += (
+                f"The strategy script crashed with exit code {result.returncode}.\n\n"
+            )
+            error_report += f"**Standard Error:**\n```\n{result.stderr}\n```\n"
+            error_report += f"**Standard Output:**\n```\n{result.stdout}\n```"
+            github.post_comment(issue_number, error_report)
+            github.transition_role(issue_number, "engineer", "stage:implementation")
+            return {
+                "messages": [
+                    f"Backtester failed: Runtime error in issue #{issue_number}"
+                ]
+            }
+
+        # Detect silent yfinance download failures
+        if "Failed download" in result.stdout or "possibly delisted" in result.stdout:
+            error_report = "### ⚠️ Backtest Data Failure\nyfinance failed to download data for one or more tickers. This usually happens due to invalid date ranges for intraday data or delisted tickers.\n\n"
+            error_report += f"**Console Output:**\n```\n{result.stdout}\n```"
+            github.post_comment(issue_number, error_report)
+            github.transition_role(issue_number, "engineer", "stage:implementation")
+            return {
+                "messages": [
+                    f"Backtester failed: Data download failure in issue #{issue_number}"
+                ]
+            }
+
         # Parse metrics from stdout using regex
         metrics = {
             "Total Return": re.search(r"Total Return:\s+([\d\.-]+%)", result.stdout),
