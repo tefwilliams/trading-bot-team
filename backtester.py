@@ -2,6 +2,7 @@ import subprocess
 import tempfile
 import os
 import logging
+import sys
 from github_utils import GitHubManager
 from state import AgentState
 
@@ -40,7 +41,7 @@ def backtester_node(state: AgentState):
     try:
         # Execute the code. Timeout after 120s to prevent hanging.
         result = subprocess.run(
-            ["python", tmp_path], capture_output=True, text=True, timeout=120
+            [sys.executable, tmp_path], capture_output=True, text=True, timeout=120
         )
 
         report = "### 📊 Backtest Results\n\n"

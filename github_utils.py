@@ -1,5 +1,5 @@
 import os
-from github import Github
+from github import Github, GithubException
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -51,6 +51,43 @@ class GitHubManager:
         cleaned_labels.append(f"role:{new_role}")
         cleaned_labels.append(new_stage)
         issue.set_labels(*cleaned_labels)
+
+    def ensure_branch(self, branch_name: str, base_branch: str = "main"):
+        """Creates a branch if it doesn't exist."""
+        try:
+            self.repo.get_branch(branch_name)
+        except GithubException:
+            base = self.repo.get_branch(base_branch)
+            self.repo.create_git_ref(
+                ref=f"refs/heads/{branch_name}", sha=base.commit.sha
+            )
+
+    def create_or_update_file(self, path: str, message: str, content: str, branch: str):
+        """Updates a file if it exists, otherwise creates it."""
+        try:
+            file = self.repo.get_contents(path, ref=branch)
+            self.repo.update_file(path, message, content, file.sha, branch=branch)
+        except GithubException:
+            self.repo.create_file(path, message, content, branch=branch)
+
+    def create_pull_request(self, title: str, body: str, head: str, base: str = "main"):
+        """Creates a PR or returns an existing one."""
+        try:
+            return self.repo.create_pull(title=title, body=body, head=head, base=base)
+        except GithubException as e:
+            if e.status == 422:  # PR already exists
+                pulls = self.repo.get_pulls(
+                    state="open", head=f"{self.repo.owner.login}:{head}"
+                )
+                return pulls[0]
+            raise e
+
+    def extract_code(self, text: str):
+        if "```python" in text:
+            start = text.find("```python") + 9
+            end = text.find("```", start)
+            return text[start:end].strip()
+        return text.strip()
 
     def get_role_issues(self, role: str):
         """Find issues where the next action is for a specific role."""

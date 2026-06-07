@@ -49,12 +49,30 @@ def engineer_node(state: AgentState):
             [part["text"] for part in content if part["type"] == "text"]
         )
 
+    # Extract code and create a Pull Request
+    clean_code = github.extract_code(content)
+    branch_name = f"strat/issue-{state['issue_number']}"
+    github.ensure_branch(branch_name)
+
+    file_path = f"strategies/strategy_{state['issue_number']}.py"
+    github.create_or_update_file(
+        file_path,
+        f"Implement strategy for issue #{state['issue_number']}",
+        clean_code,
+        branch_name,
+    )
+
+    pr = github.create_pull_request(
+        title=f"Strategy: {issue.title}",
+        body=f"This PR implements the strategy described in issue #{state['issue_number']}.\n\nCloses #{state['issue_number']}",
+        head=branch_name,
+    )
+
     # Post the implementation as a structured comment
     comment_body = (
         f"### 🤖 Engineer implementation generated\n\n"
-        f"I have translated the strategy specification into code:\n\n"
-        f"{content}\n\n"
-        f"**Next Steps:** This implementation is ready for review and backtest validation."
+        f"I have implemented the code in branch `{branch_name}` and opened a Pull Request: {pr.html_url}\n\n"
+        f"**Implementation Details:**\n{content}\n"
     )
     github.post_comment(state["issue_number"], comment_body)
 
