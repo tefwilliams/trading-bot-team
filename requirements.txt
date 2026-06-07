@@ -1,6 +1,6 @@
 langgraph
-anthropic
-google-generativeai
+langchain-google-genai
+google-genai
 PyGithub
 python-dotenv
 yfinance
