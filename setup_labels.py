@@ -21,6 +21,7 @@ def setup_labels():
         "role:researcher": "FBCA04",
         "role:engineer": "1D76DB",
         "role:reviewer": "D4C5F9",
+        "role:risk_manager": "E11D21",
         "role:manager": "006B75",
         # Stages
         "stage:proposal": "E99695",

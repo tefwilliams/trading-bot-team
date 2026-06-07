@@ -1,6 +1,6 @@
-from agents.llm import get_llm
-from agents.github_utils import GitHubManager
-from agents.state import AgentState
+from llm import get_llm
+from github_utils import GitHubManager
+from state import AgentState
 
 
 def researcher_node(state: AgentState):
