@@ -7,46 +7,32 @@ Implements T-1 regime filters, state-based exit logic, partial exits, and portfo
 import pandas as pd
 import numpy as np
 import yfinance as yf
-
-def calculate_technical_indicators(df: pd.DataFrame):
-    """Calculates RSI-2, ATR, and ADX."""
-    # RSI-2
-    delta = df['Close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=2).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=2).mean()
-    rs = gain / loss
-    df['rsi2'] = 100 - (100 / (1 + rs))
-    
-    # ATR (14-period)
-    high_low = df['High'] - df['Low']
-    high_close = np.abs(df['High'] - df['Close'].shift())
-    low_close = np.abs(df['Low'] - df['Close'].shift())
-    df['atr'] = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1).rolling(14).mean()
-    
-    # ADX Calculation (Wilder's Smoothing)
-    plus_dm = (df['High'].diff().where((df['High'].diff() > df['Low'].diff()) & (df['High'].diff() > 0), 0))
-    minus_dm = (df['Low'].diff().where((df['Low'].diff() > df['High'].diff()) & (df['Low'].diff() > 0), 0))
-    tr = df['atr'] * 14
-    plus_di = 100 * (plus_dm.rolling(14).mean() / tr)
-    minus_di = 100 * (minus_dm.rolling(14).mean() / tr)
-    dx = 100 * (abs(plus_di - minus_di) / (plus_di + minus_di))
-    df['ADX'] = dx.rolling(14).mean()
-    
-    return df
+import pandas_ta as ta
 
 def generate_signals(df_15m: pd.DataFrame, daily_data: pd.DataFrame, vix_data: pd.Series) -> pd.Series:
-    """Generates signals using T-1 daily regime filters."""
+    """
+    Generates signals using T-1 daily regime filters to prevent look-ahead bias.
+    """
+    # 1. Prepare Daily Filters (T-1)
     daily_regime = daily_data.shift(1)
-    vix_limit = vix_data.rolling(252).quantile(0.9).shift(1)
     
+    # Calculate rolling 90th percentile of VIX (T-1)
+    vix_limit = vix_data.rolling(window=252).quantile(0.9).shift(1)
+    
+    # 2. Merge Indicators
     df = df_15m.copy()
     df['date'] = df.index.date
     df = df.merge(daily_regime[['ADX', 'EMA200']], left_on='date', right_index=True, how='left')
     df = df.merge(vix_limit.rename('vix_limit'), left_on='date', right_index=True, how='left')
     
-    df = calculate_technical_indicators(df)
+    # 3. Calculate Technical Indicators
+    df['rsi2'] = ta.rsi(df['Close'], length=2)
+    df['atr'] = ta.atr(df['High'], df['Low'], df['Close'], length=14)
     
+    # 4. Logic Implementation
+    # Long: RSI < 15, ADX < 30, Price > EMA200, VIX < Limit
     long_cond = (df['rsi2'] < 15) & (df['ADX'] < 30) & (df['Close'] > df['EMA200']) & (df['Close'] < df['vix_limit'])
+    # Short: RSI > 85, ADX < 30, VIX < Limit
     short_cond = (df['rsi2'] > 85) & (df['ADX'] < 30) & (df['Close'] < df['vix_limit'])
     
     signals = pd.Series(0, index=df.index)
@@ -55,11 +41,15 @@ def generate_signals(df_15m: pd.DataFrame, daily_data: pd.DataFrame, vix_data: p
     return signals
 
 def run_backtest(ticker: str = "AAPL"):
-    """State-based backtest engine."""
+    """
+    State-based backtest engine implementing ARMR exit logic and risk guardrails.
+    """
     # Data Loading
     df_15m = yf.download(ticker, period='1y', interval='15m')
     df_daily = yf.download(ticker, period='1y', interval='1d')
-    df_daily['EMA200'] = df_daily['Close'].ewm(span=200).mean()
+    df_daily['EMA200'] = ta.ema(df_daily['Close'], length=200)
+    adx_obj = ta.adx(df_daily['High'], df_daily['Low'], df_daily['Close'], length=14)
+    df_daily['ADX'] = adx_obj['ADX_14']
     vix = yf.download('^VIX', period='1y')['Close']
     
     signals = generate_signals(df_15m, df_daily, vix)
@@ -73,15 +63,12 @@ def run_backtest(ticker: str = "AAPL"):
     consecutive_losses = 0
     portfolio_equity = 100000.0
     daily_pnl = 0.0
-    circuit_breaker = False
-    
     pnl_history = []
     
     for i in range(1, len(df_15m)):
-        # Circuit Breaker Reset
+        # Daily Reset for Circuit Breaker
         if df_15m.index[i].day != df_15m.index[i-1].day:
             daily_pnl = 0
-            circuit_breaker = False
             
         curr_price = df_15m['Open'].iloc[i]
         
@@ -92,7 +79,7 @@ def run_backtest(ticker: str = "AAPL"):
             
             stop_loss_hit = (curr_price - entry_price) * pos < -2.5 * entry_atr
             take_profit = (pos == 1 and rsi > 60) or (pos == -1 and rsi < 40)
-            time_exit = bars_held >= 130
+            time_exit = bars_held >= 130 # 5 days * 26 bars
             
             if take_profit and pos_size == 1.0:
                 # 50% Partial Exit
@@ -105,23 +92,19 @@ def run_backtest(ticker: str = "AAPL"):
                 trade_pnl = ((curr_price - entry_price) * pos) * pos_size
                 portfolio_equity += trade_pnl
                 daily_pnl += trade_pnl
-                if trade_pnl < 0: consecutive_losses += 1
-                else: consecutive_losses = 0
+                consecutive_losses = consecutive_losses + 1 if trade_pnl < 0 else 0
                 pnl_history.append(trade_pnl)
                 pos = 0
                 pos_size = 1.0
         
         # Entry Logic
-        if pos == 0 and signals.iloc[i-1] != 0 and not circuit_breaker:
+        # Circuit Breaker: Stop if daily drawdown > 3%
+        if pos == 0 and signals.iloc[i-1] != 0 and abs(daily_pnl / portfolio_equity) < 0.03:
             if consecutive_losses < 5:
                 pos = signals.iloc[i-1]
                 entry_price = curr_price
                 entry_atr = df_15m['atr'].iloc[i-1]
                 entry_idx = i
-        
-        # Circuit Breaker Check
-        if abs(daily_pnl / portfolio_equity) > 0.03:
-            circuit_breaker = True
             
     # Metrics
     returns = np.array(pnl_history)
