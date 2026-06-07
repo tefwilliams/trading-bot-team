@@ -32,9 +32,12 @@ class GitHubManager:
             for r in remove:
                 new_labels.discard(r)
 
-        issue.set_labels(list(new_labels))
+        issue.set_labels(*new_labels)
 
     def get_role_issues(self, role: str):
         """Find issues where the next action is for a specific role."""
         label = f"role:{role}"
         return self.repo.get_issues(labels=[label], state="open")
+
+    def create_issue(self, title: str, body: str, labels: list[str]):
+        return self.repo.create_issue(title=title, body=body, labels=labels)

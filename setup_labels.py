@@ -1,5 +1,5 @@
 import os
-from github import Github
+from github import Github, GithubException
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -41,8 +41,11 @@ def setup_labels():
         try:
             repo.create_label(name, color)
             print(f"Created label: {name}")
-        except:
-            print(f"Label {name} already exists or error occurred.")
+        except GithubException as e:
+            if e.status == 422:
+                print(f"Label {name} already exists.")
+            else:
+                print(f"Error creating {name}: {e.data.get('message')}")
 
 
 if __name__ == "__main__":
