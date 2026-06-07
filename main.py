@@ -7,6 +7,7 @@ from researcher import researcher_node
 from engineer import engineer_node
 from reviewer import reviewer_node
 from risk_manager import risk_manager_node
+from product_manager import product_manager_node
 
 # Configure logging for professional visibility into agent actions
 logging.basicConfig(
@@ -24,6 +25,7 @@ def create_graph():
     workflow.add_node("engineer", engineer_node)
     workflow.add_node("reviewer", reviewer_node)
     workflow.add_node("risk_manager", risk_manager_node)
+    workflow.add_node("product_manager", product_manager_node)
 
     # Route to the correct node based on the current role in state
     workflow.add_conditional_edges(
@@ -34,6 +36,7 @@ def create_graph():
             "engineer": "engineer",
             "reviewer": "reviewer",
             "risk_manager": "risk_manager",
+            "product_manager": "product_manager",
         },
     )
 
@@ -41,6 +44,7 @@ def create_graph():
     workflow.add_edge("engineer", END)
     workflow.add_edge("reviewer", END)
     workflow.add_edge("risk_manager", END)
+    workflow.add_edge("product_manager", END)
 
     return workflow.compile()
 
@@ -55,7 +59,13 @@ def run_orchestrator():
     while True:
         try:
             # Process each role in a standardized loop
-            roles = ["researcher", "engineer", "reviewer", "risk_manager"]
+            roles = [
+                "product_manager",
+                "researcher",
+                "engineer",
+                "reviewer",
+                "risk_manager",
+            ]
 
             for role in roles:
                 tasks = github.get_role_issues(role)

@@ -23,10 +23,13 @@ def setup_labels():
         "role:reviewer": "D4C5F9",
         "role:risk_manager": "E11D21",
         "role:manager": "006B75",
+        "role:product_manager": "6B4FAD",
         # Stages
         "stage:proposal": "E99695",
         "stage:approved-spec": "C2E0C6",
+        "stage:ideation": "5319E7",
         "stage:implementation": "BFDADC",
+        "stage:final-review": "0052CC",
         "stage:review": "FEF2C0",
         "stage:backtest": "D4C5F9",
         "stage:done": "0E8A16",

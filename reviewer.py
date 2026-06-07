@@ -55,8 +55,8 @@ def reviewer_node(state: AgentState):
     if "[APPROVED]" in content.upper():
         # If we approved a spec, it goes to Engineer. If we approved code, it goes to Backtest/Manager.
         is_code = "```python" in thread_context or "```python" in content
-        next_role = "manager" if is_code else "engineer"
-        next_stage = "stage:backtest" if is_code else "stage:approved-spec"
+        next_role = "product_manager"
+        next_stage = "stage:final-review" if is_code else "stage:approved-spec"
 
         github.update_labels(
             state["issue_number"],

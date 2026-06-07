@@ -19,6 +19,10 @@ class GitHubManager:
         issue = self.get_issue(issue_number)
         return issue.create_comment(body)
 
+    def close_issue(self, issue_number: int):
+        issue = self.get_issue(issue_number)
+        issue.edit(state="closed")
+
     def update_labels(
         self, issue_number: int, add: list[str] = None, remove: list[str] = None
     ):

@@ -21,10 +21,8 @@ def engineer_node(state: AgentState):
     prompt = f"""
     You are an expert Quantitative Software Engineer. Your task is to implement the following trading strategy spec into a runnable Python script.
     
-    STRATEGY SPECIFICATION:
     STRATEGY SPECIFICATION & CONTEXT:
     Title: {issue.title}
-    Details: {issue.body}
     Original Objective: {issue.body}
 
     CONVERSATION HISTORY (Contains the Strategy Proposal and Reviewer Feedback):
