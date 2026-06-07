@@ -12,12 +12,23 @@ def engineer_node(state: AgentState):
 
     issue = github.get_issue(state["issue_number"])
 
+    # Fetch conversation history so the engineer can see the strategy proposal and feedback
+    comments = list(issue.get_comments())
+    thread_context = "\n\n".join(
+        [f"--- Comment from {c.user.login} ---\n{c.body}" for c in comments]
+    )
+
     prompt = f"""
     You are an expert Quantitative Software Engineer. Your task is to implement the following trading strategy spec into a runnable Python script.
     
     STRATEGY SPECIFICATION:
+    STRATEGY SPECIFICATION & CONTEXT:
     Title: {issue.title}
     Details: {issue.body}
+    Original Objective: {issue.body}
+
+    CONVERSATION HISTORY (Contains the Strategy Proposal and Reviewer Feedback):
+    {thread_context}
     
     REQUIREMENTS:
     1. Use `yfinance` to fetch historical data for the specified universe.
@@ -27,6 +38,8 @@ def engineer_node(state: AgentState):
     5. Include a backtesting loop that calculates performance metrics: Total Return, Max Drawdown, and Sharpe Ratio.
     6. Ensure the code is clean, commented, and standalone.
     
+    IMPORTANT: If there is previous feedback or a rejected implementation in the history, you MUST address the specific critiques and fix the bugs identified.
+
     Output ONLY the Python code inside a markdown block.
     """
 
