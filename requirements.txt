@@ -1,7 +1,11 @@
-langgraph
-langchain-google-genai
-google-genai
 PyGithub
 python-dotenv
+langgraph
+langchain-google-genai
 yfinance
 pandas
+matplotlib
+numpy
+scipy
+ta-lib  # Optional, but often used by quant researchers for indicators
+requests
