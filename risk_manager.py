@@ -52,19 +52,11 @@ def risk_manager_node(state: AgentState):
 
     if "[SAFE]" in content.upper():
         # Pass to the Reviewer for final sign-off
-        github.update_labels(
-            state["issue_number"],
-            add=["role:reviewer", "stage:review"],
-            remove=["role:risk_manager"],
-        )
+        github.transition_role(state["issue_number"], "reviewer", "stage:review")
     else:
         # Back to the Engineer or Researcher
         is_code = "```python" in thread_context
         next_role = "engineer" if is_code else "researcher"
-        github.update_labels(
-            state["issue_number"],
-            add=[f"role:{next_role}", "stage:rejected"],
-            remove=["role:risk_manager"],
-        )
+        github.transition_role(state["issue_number"], next_role, "stage:rejected")
 
     return {"messages": [f"Risk Manager evaluated issue #{state['issue_number']}"]}

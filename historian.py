@@ -58,4 +58,7 @@ def historian_node(state: AgentState):
         f"### 📝 Historian Logged\nStrategy metrics ({metrics['Sharpe Ratio']} Sharpe) have been archived to the performance manifest.",
     )
 
+    # Final transition to Manager for PR merge
+    github.transition_role(issue_number, "manager", "stage:review")
+
     return {"messages": [f"Historian logged performance for issue #{issue_number}"]}
