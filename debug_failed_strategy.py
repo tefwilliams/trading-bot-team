@@ -2,6 +2,7 @@
 strategies/strategy_9.py
 Adaptive RSI Mean Reversion (ARMR) for NASDAQ-100
 Implements T-1 regime filters, state-based exit logic, partial exits, and portfolio circuit breaker.
+Uses Daily data (1d) to ensure reliability.
 """
 
 import pandas as pd
@@ -38,8 +39,6 @@ def generate_signals(data: pd.DataFrame) -> pd.Series:
 def run_backtest():
     """
     State-based backtest engine implementing ARMR exit logic and risk guardrails.
-    Note: Intraday data is restricted to 60 days by Yahoo Finance, 
-    so we use Daily (1d) data for reliable long-term backtesting.
     """
     ticker = "AAPL"
     end_date = datetime.now()
@@ -55,22 +54,23 @@ def run_backtest():
 
     # Prepare Indicators
     df['EMA200'] = df['Close'].ewm(span=200).mean()
-    
     # True Range (TR) for ADX/ATR Proxy
     prev_close = df['Close'].shift(1)
-    tr = np.maximum(df['High'] - df['Low'], 
-                    np.maximum(abs(df['High'] - prev_close), abs(df['Low'] - prev_close)))
+    tr = pd.concat([df['High'] - df['Low'], 
+                    abs(df['High'] - prev_close), 
+                    abs(df['Low'] - prev_close)], axis=1).max(axis=1)
     df['ADX'] = tr.rolling(14).mean()
     df['atr'] = tr.rolling(14).mean()
     df['VIX_Limit'] = vix.rolling(window=252).quantile(0.9)
     
-    # Shift filters to prevent look-ahead bias (T-1)
+    # Generate signals using T-1 shifted data to prevent look-ahead bias
+    # Align the shifted features to the index of the original df
     df_shifted = df.shift(1)
-    df_shifted['Close'] = df['Close']
-    df_shifted['High'] = df['High']
-    df_shifted['Low'] = df['Low']
+    # Ensure signal generation uses the current Close for logic alignment
+    df_input = df_shifted.copy()
+    df_input['Close'] = df['Close']
     
-    signals = generate_signals(df_shifted)
+    signals = generate_signals(df_input)
     
     # Backtest Loop
     pos, entry_price, entry_atr, entry_idx = 0, 0, 0, 0
@@ -90,20 +90,24 @@ def run_backtest():
             
             if stop_loss_hit or time_exit:
                 trade_pnl = ((curr_price - entry_price) * pos) * pos_size
-                portfolio_equity += trade_pnl; daily_pnl += trade_pnl
+                portfolio_equity += trade_pnl
+                daily_pnl += trade_pnl
                 consecutive_losses = consecutive_losses + 1 if trade_pnl < 0 else 0
-                pnl_history.append(trade_pnl); pos = 0; pos_size = 1.0
+                pnl_history.append(trade_pnl)
+                pos = 0
+                pos_size = 1.0
         
         # Entry Logic
         if pos == 0 and signals.iloc[i-1] != 0 and abs(daily_pnl / portfolio_equity) < 0.03:
             if consecutive_losses < 5:
-                pos = signals.iloc[i-1]; entry_price = curr_price
-                entry_atr = df['atr'].iloc[i-1]; entry_idx = i
+                pos = signals.iloc[i-1]
+                entry_price = curr_price
+                entry_atr = df['atr'].iloc[i-1]
+                entry_idx = i
             
     # Metrics
     returns = np.array(pnl_history)
     total_ret = (portfolio_equity - 100000) / 100000
-    max_dd = (1 - (portfolio_equity / 100000)) if portfolio_equity < 100000 else 0
     sharpe = (np.mean(returns) / np.std(returns)) * np.sqrt(252) if len(returns) > 1 else 0
     
     print(f"--- Backtest {ticker} ---")
