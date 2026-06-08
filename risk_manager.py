@@ -51,8 +51,8 @@ def risk_manager_node(state: AgentState):
     )
 
     if "[SAFE]" in content.upper():
-        # Pass to the Reviewer for final sign-off
-        github.transition_role(state["issue_number"], "reviewer", "stage:review")
+        # Pass to the Backtester for performance validation
+        github.transition_role(state["issue_number"], "backtester", "stage:backtest")
     else:
         # Back to the Engineer or Researcher
         is_code = "```python" in thread_context

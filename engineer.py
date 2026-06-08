@@ -29,9 +29,10 @@ def engineer_node(state: AgentState):
     {thread_context}
     
     REQUIREMENTS:
-    1. Use `yfinance` to fetch historical data using explicit `start` and `end` dates (formatted as 'YYYY-MM-DD' strings).
-       - ALWAYS specify `interval='1d'` in the download call.
-       - NOTE: Do NOT use intraday intervals (1m, 5m, 15m) as Yahoo Finance limits this to the last 60 days.
+    1. **CRITICAL DATA ACCESS**: Use `yfinance` to fetch historical data using explicit `start` and `end` dates.
+       - You MUST explicitly set `interval='1d'` in the `yf.download()` call.
+       - DO NOT use intraday intervals (1m, 5m, 15m, 60m) as they will fail for any backtest period longer than 60 days.
+       - If the user asks for "intraday" or "15m", politely explain that we are restricted to Daily data for now and implement using `1d`.
     2. Use `pandas` for data manipulation and signal generation.
     3. Implement the Entry and Exit rules exactly as described.
     4. Implement the Position Sizing logic.
@@ -47,6 +48,7 @@ def engineer_node(state: AgentState):
     
     IMPORTANT: Save the strategy to `strategies/strategy_{state["issue_number"]}.py`.
     IMPORTANT: If there is previous feedback or a rejected implementation in the history, you MUST address the specific critiques and fix the bugs identified.
+    IMPORTANT: Your code will be automatically validated for structural integrity (AST) and executed in a sandbox. Ensure strict compliance with function signatures.
 
     Output ONLY the Python code inside a markdown block.
     """

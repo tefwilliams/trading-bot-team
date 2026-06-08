@@ -61,6 +61,14 @@ def backtester_node(state: AgentState):
 
     code = github.get_latest_code_block(issue_number)
 
+    if not code:
+        github.post_comment(
+            issue_number,
+            "### ❌ Backtest Failed\nCould not find a Python code block to execute in the PR or comments.",
+        )
+        github.transition_role(issue_number, "engineer", "stage:implementation")
+        return {"messages": ["Backtester failed: No code found"]}
+
     # Step 1: Structural Validation
     interface_errors = validate_interface(code)
     if interface_errors:
@@ -75,14 +83,6 @@ def backtester_node(state: AgentState):
         github.post_comment(issue_number, error_msg)
         github.transition_role(issue_number, "engineer", "stage:implementation")
         return {"messages": ["Backtester failed interface validation"]}
-
-    if not code:
-        github.post_comment(
-            issue_number,
-            "### ❌ Backtest Failed\nCould not find a Python code block to execute.",
-        )
-        github.transition_role(issue_number, "engineer", "stage:implementation")
-        return {"messages": ["Backtester failed: No code found"]}
 
     github.post_comment(
         issue_number,
@@ -109,6 +109,15 @@ def backtester_node(state: AgentState):
             [sys.executable, tmp_path], capture_output=True, text=True, timeout=120
         )
 
+        # Save the failing code to a local file for easier manual debugging
+        if result.returncode != 0 or "Failed download" in result.stdout:
+            debug_path = "debug_failed_strategy.py"
+            with open(debug_path, "w", encoding="utf-8") as f:
+                f.write(code)
+            logger.info(
+                f"Failing strategy code saved to {debug_path} for manual debugging."
+            )
+
         # Detect runtime crashes
         if result.returncode != 0:
             error_report = "### ❌ Backtest Runtime Error\n"
@@ -126,8 +135,15 @@ def backtester_node(state: AgentState):
             }
 
         # Detect silent yfinance download failures
-        if "Failed download" in result.stdout or "possibly delisted" in result.stdout:
+        full_output = result.stdout + result.stderr
+        if any(
+            msg in full_output
+            for msg in ["Failed download", "possibly delisted", "data not available"]
+        ):
             error_report = "### ⚠️ Backtest Data Failure\nyfinance failed to download data for one or more tickers. This usually happens due to invalid date ranges for intraday data or delisted tickers.\n\n"
+            if "15m data not available" in full_output:
+                error_report += "**Specific Fix Required:** The request for 15m data failed because the range exceeds 60 days. You MUST switch to `interval='1d'` for this backtest window.\n\n"
+
             error_report += f"**Console Output:**\n```\n{result.stdout}\n```"
             github.post_comment(issue_number, error_report)
             github.transition_role(issue_number, "engineer", "stage:implementation")

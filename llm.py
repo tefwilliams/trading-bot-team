@@ -25,5 +25,7 @@ def get_llm(role: str):
     return ChatGoogleGenerativeAI(
         model=model_name,
         temperature=0,
-        system_instruction="You are a strict QA Reviewer. Your only job is to find flaws, missing details, or poor formatting in IT tickets.",
+        model_kwargs={
+            "system_instruction": "You are a strict QA Reviewer. Your only job is to find flaws, missing details, or poor formatting in IT tickets."
+        },
     )

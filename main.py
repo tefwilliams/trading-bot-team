@@ -96,8 +96,8 @@ def run_orchestrator():
         except Exception as e:
             logger.error(f"Error in orchestrator loop: {e}")
 
-        # Poll every minute to stay within GitHub API rate limits
-        time.sleep(60)
+        # Poll every 15 seconds for a better feedback loop while staying within rate limits
+        time.sleep(15)
 
 
 if __name__ == "__main__":
