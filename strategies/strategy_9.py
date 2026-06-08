@@ -63,12 +63,16 @@ def run_backtest():
     df['atr'] = tr.rolling(14).mean()
     df['VIX_Limit'] = vix.rolling(window=252).quantile(0.9)
     
-    # Generate signals using T-1 shifted data to prevent look-ahead bias
-    # Align the shifted features to the index of the original df
+    # Shift filters to prevent look-ahead bias (T-1)
     df_shifted = df.shift(1)
-    # Ensure signal generation uses the current Close for logic alignment
-    df_input = df_shifted.copy()
+    
+    # Align data frames for signal generation
+    # We create a dataframe containing the shifted filters and current price data
+    df_input = pd.DataFrame(index=df.index)
     df_input['Close'] = df['Close']
+    df_input['ADX'] = df_shifted['ADX']
+    df_input['EMA200'] = df_shifted['EMA200']
+    df_input['VIX_Limit'] = df_shifted['VIX_Limit']
     
     signals = generate_signals(df_input)
     
