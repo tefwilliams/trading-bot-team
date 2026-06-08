@@ -2,6 +2,11 @@
 
 This document defines the standard operating procedure for developing new trading strategies within the team.
 
+## Core Principle: No Manual Intervention
+Strategy code in the `strategies/` directory is strictly managed by AI agents. Human managers steer via requirements and reviews but should **never** manually edit implementation files. 
+
+If a backtest fails or an interface is rejected, the system is designed to loop back to the **Engineer** for automated correction based on the logs provided by the **Backtester**.
+
 ## Phase 1: Ideation & Research
 1. **Manager (Human)** creates an issue with `role:researcher`.
 2. **Researcher (AI)** proposes a strategy spec and moves to `role:reviewer`.
