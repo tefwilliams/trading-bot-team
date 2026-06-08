@@ -1,8 +1,7 @@
 """
 strategies/strategy_9.py
 Adaptive RSI Mean Reversion (ARMR) for NASDAQ-100
-Note: Intraday intervals are restricted to 60 days by Yahoo Finance. 
-This implementation uses '1d' data to ensure long-term backtest reliability.
+Implements T-1 regime filters, state-based exit logic, partial exits, and portfolio circuit breaker.
 """
 
 import pandas as pd
@@ -39,6 +38,8 @@ def generate_signals(data: pd.DataFrame) -> pd.Series:
 def run_backtest():
     """
     State-based backtest engine implementing ARMR exit logic and risk guardrails.
+    Note: Intraday data is restricted to 60 days by Yahoo Finance, 
+    so we use Daily (1d) data for reliable long-term backtesting.
     """
     ticker = "AAPL"
     end_date = datetime.now()
@@ -54,15 +55,20 @@ def run_backtest():
 
     # Prepare Indicators
     df['EMA200'] = df['Close'].ewm(span=200).mean()
-    # Simple ADX Proxy (14-day)
-    tr = df['High'].combine(df['Close'].shift(1), max) - df['Low'].combine(df['Close'].shift(1), min)
-    df['ADX'] = tr.rolling(14).mean() 
-    df['VIX_Limit'] = vix.rolling(window=252).quantile(0.9)
-    df['atr'] = tr.rolling(14).mean()
     
-    # Shift filters to prevent look-ahead bias
+    # True Range (TR) for ADX/ATR Proxy
+    prev_close = df['Close'].shift(1)
+    tr = np.maximum(df['High'] - df['Low'], 
+                    np.maximum(abs(df['High'] - prev_close), abs(df['Low'] - prev_close)))
+    df['ADX'] = tr.rolling(14).mean()
+    df['atr'] = tr.rolling(14).mean()
+    df['VIX_Limit'] = vix.rolling(window=252).quantile(0.9)
+    
+    # Shift filters to prevent look-ahead bias (T-1)
     df_shifted = df.shift(1)
-    df_shifted['Close'] = df['Close'] # Keep actual price for entry
+    df_shifted['Close'] = df['Close']
+    df_shifted['High'] = df['High']
+    df_shifted['Low'] = df['Low']
     
     signals = generate_signals(df_shifted)
     
@@ -79,7 +85,6 @@ def run_backtest():
         
         # Exit Logic
         if pos != 0:
-            rsi = 50 # Simplified for daily loop
             stop_loss_hit = (curr_price - entry_price) * pos < -2.5 * entry_atr
             time_exit = (i - entry_idx) >= 5 # 5 trading days
             
@@ -98,8 +103,12 @@ def run_backtest():
     # Metrics
     returns = np.array(pnl_history)
     total_ret = (portfolio_equity - 100000) / 100000
+    max_dd = (1 - (portfolio_equity / 100000)) if portfolio_equity < 100000 else 0
     sharpe = (np.mean(returns) / np.std(returns)) * np.sqrt(252) if len(returns) > 1 else 0
-    print(f"--- Backtest {ticker}: Return={total_ret:.2%}, Sharpe={sharpe:.2f} ---")
+    
+    print(f"--- Backtest {ticker} ---")
+    print(f"Total Return: {total_ret:.2%}")
+    print(f"Sharpe Ratio: {sharpe:.2f}")
 
 if __name__ == "__main__":
     run_backtest()
