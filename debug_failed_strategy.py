@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import json
+import sys
 from datetime import datetime, timedelta
 
 
@@ -61,7 +62,7 @@ def run_backtest():
 
     if df is None or df.empty or vix is None or vix.empty:
         print("Error: Failed to download sufficient data.")
-        return
+        sys.exit(1)
 
     # Prepare Indicators
     df["EMA200"] = df["Close"].ewm(span=200).mean()

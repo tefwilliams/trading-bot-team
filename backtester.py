@@ -100,8 +100,12 @@ def backtester_node(state: AgentState):
         tmp.write(
             "try:\n    yf.set_tz_cache_location(tempfile.gettempdir())\nexcept Exception:\n    pass\n"
         )
-
         tmp.write(code)
+
+        # Ensure the backtest is actually triggered if the LLM forgot the entry point
+        if "run_backtest()" not in code.split("\n")[-5:]:
+            tmp.write("\n\nif __name__ == '__main__':\n    run_backtest()\n")
+
         tmp_path = tmp.name
 
     try:
@@ -168,9 +172,18 @@ def backtester_node(state: AgentState):
                     f"Failed to read backtest_results.json for issue #{issue_number}: {e}"
                 )
         else:
-            logger.warning(
-                f"backtest_results.json not found for issue #{issue_number}. Falling back to N/A."
-            )
+            # If JSON is missing but returncode was 0, the script likely exited early or failed to write
+            error_msg = "### ❌ Backtest Logic Error\nThe script finished without producing `backtest_results.json`. This usually means a data download failed or a logic error caused an early `return`."
+            if result.stdout:
+                error_msg += f"\n\n**Console Output:**\n```\n{result.stdout}\n```"
+            
+            github.post_comment(issue_number, error_msg)
+            github.transition_role(issue_number, "engineer", "stage:implementation")
+            return {
+                "messages": [
+                    f"Backtester failed: No JSON output for issue #{issue_number}"
+                ]
+            }
 
         display_metrics = {
             "Total Return": (

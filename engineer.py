@@ -46,8 +46,8 @@ def engineer_node(state: AgentState):
        - Use exact keys: `"total_return"`, `"max_drawdown"`, `"sharpe_ratio"`.
        - Do NOT include percentage signs in the JSON values; use raw floats (e.g., 0.15 for 15%).
        - This is critical for automated parsing.
-    7. Ensure the code is clean, commented, and standalone.
-    8. **ROBUST DATA HANDLING**: You MUST verify that the downloaded DataFrame is not None and not empty (`df is not None and not df.empty`) before calculating indicators or running the backtest loop. If data is missing, the script should print a clear error and exit gracefully rather than crashing.
+    7. **ENTRY POINT**: You MUST include the `if __name__ == "__main__": run_backtest()` block at the bottom of the script.
+    8. **ROBUST DATA HANDLING**: You MUST verify that the downloaded DataFrames are not None and not empty. If data is missing, you MUST `import sys` and call `sys.exit(1)` after printing a descriptive error. DO NOT simply use `return`, as the orchestrator needs a non-zero exit code to detect the failure.
     9. Use vectorized operations where possible for performance.
     
     IMPORTANT: Save the strategy to `strategies/strategy_{state["issue_number"]}.py`.
