@@ -4,42 +4,35 @@ import numpy as np
 import json
 import os
 
-def generate_signals(data: pd.DataFrame) -> pd.DataFrame:
+def generate_signals(data: pd.DataFrame) -> pd.Series:
     """
     Generates trading signals for the ARMR strategy.
-    Returns the dataframe with indicators and a 'signal' column.
+    Entry: SMA200 filter + RSI(2) < 10.
+    Returns a Series of signals (1: Long, 0: Flat).
     """
     df = data.copy()
     
-    # Calculate RSI(2)
+    # Calculate Indicators
     delta = df['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=2).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=2).mean()
     rs = gain / loss
     df['RSI2'] = 100 - (100 / (1 + rs))
-    
-    # Calculate SMA200
     df['SMA200'] = df['Close'].rolling(window=200).mean()
     
-    # Calculate ATR(14)
-    high_low = df['High'] - df['Low']
-    high_close = np.abs(df['High'] - df['Close'].shift())
-    low_close = np.abs(df['Low'] - df['Close'].shift())
-    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
-    df['ATR14'] = tr.rolling(window=14).mean()
-
+    # Signal generation: 1 for Long, 0 for Flat
     # Entry Rule: Close > SMA200 AND RSI(2) < 10
-    # Signal = 1 at the close of the day the condition is met
-    df['signal'] = 0
+    # Note: We return the trigger signal. The execution logic handles the 1-day lag.
+    signals = pd.Series(0, index=df.index)
     mask = (df['Close'] > df['SMA200']) & (df['RSI2'] < 10)
-    df.loc[mask, 'signal'] = 1
+    signals.loc[mask] = 1
     
-    return df
+    return signals
 
 def run_backtest():
     # 1. Setup Data
     ticker = "QQQ"
-    df = yf.download(ticker, start="2010-01-01", end=None, interval='1d')
+    df = yf.download(ticker, start="2010-01-01", interval='1d')
     
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
@@ -47,8 +40,21 @@ def run_backtest():
     if df is None or df.empty:
         raise ValueError("Failed to download data.")
 
-    # 2. Generate Indicators and Signals
-    df = generate_signals(df)
+    # 2. Generate Signals and Indicators
+    signals = generate_signals(df)
+    
+    # Recalculate indicators for the backtest loop access
+    delta = df['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=2).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=2).mean()
+    rs = gain / loss
+    df['RSI2'] = 100 - (100 / (1 + rs))
+    
+    high_low = df['High'] - df['Low']
+    high_close = np.abs(df['High'] - df['Close'].shift())
+    low_close = np.abs(df['Low'] - df['Close'].shift())
+    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+    df['ATR14'] = tr.rolling(window=14).mean()
     
     # 3. Simulate Trades
     position = 0
@@ -57,13 +63,12 @@ def run_backtest():
     entry_atr = 0.0
     trades = []
     
-    # Iterate through data starting after indicator warm-up (200 days)
+    # Loop from 200 to ensure SMA200 is warm
     for i in range(200, len(df)):
         # Exit Logic
         if position == 1:
             days_held = (i - entry_date)
             rsi_exit = df['RSI2'].iloc[i] > 70
-            # Stop loss: 2x ATR at entry
             atr_stop = df['Close'].iloc[i] <= (entry_price - (2 * entry_atr))
             time_stop = days_held >= 5
             
@@ -73,8 +78,7 @@ def run_backtest():
                 position = 0
         
         # Entry Logic (1 day lag: signal at i-1 triggers entry at open of i)
-        # We also ensure we aren't already in a position
-        elif df['signal'].iloc[i-1] == 1 and position == 0:
+        elif signals.iloc[i-1] == 1 and position == 0:
             position = 1
             entry_price = df['Open'].iloc[i]
             entry_date = i
