@@ -4,9 +4,10 @@ import numpy as np
 import json
 import os
 
-def generate_signals(data: pd.DataFrame) -> pd.Series:
+def generate_signals(data: pd.DataFrame) -> pd.DataFrame:
     """
     Generates trading signals for the ARMR strategy.
+    Returns the dataframe with indicators and a 'signal' column.
     """
     df = data.copy()
     
@@ -27,8 +28,8 @@ def generate_signals(data: pd.DataFrame) -> pd.Series:
     tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
     df['ATR14'] = tr.rolling(window=14).mean()
 
-    # Signals: 1 for Long, 0 for Flat
     # Entry Rule: Close > SMA200 AND RSI(2) < 10
+    # Signal = 1 at the close of the day the condition is met
     df['signal'] = 0
     mask = (df['Close'] > df['SMA200']) & (df['RSI2'] < 10)
     df.loc[mask, 'signal'] = 1
@@ -38,7 +39,8 @@ def generate_signals(data: pd.DataFrame) -> pd.Series:
 def run_backtest():
     # 1. Setup Data
     ticker = "QQQ"
-    df = yf.download(ticker, start="2010-01-01", interval='1d')
+    df = yf.download(ticker, start="2010-01-01", end=None, interval='1d')
+    
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
     
@@ -50,17 +52,19 @@ def run_backtest():
     
     # 3. Simulate Trades
     position = 0
-    entry_price = 0
+    entry_price = 0.0
     entry_date = None
+    entry_atr = 0.0
     trades = []
     
-    # Iterate through data starting after indicator warm-up
+    # Iterate through data starting after indicator warm-up (200 days)
     for i in range(200, len(df)):
         # Exit Logic
         if position == 1:
             days_held = (i - entry_date)
             rsi_exit = df['RSI2'].iloc[i] > 70
-            atr_stop = df['Close'].iloc[i] <= (entry_price - (2 * df['ATR14'].iloc[entry_date]))
+            # Stop loss: 2x ATR at entry
+            atr_stop = df['Close'].iloc[i] <= (entry_price - (2 * entry_atr))
             time_stop = days_held >= 5
             
             if rsi_exit or atr_stop or time_stop:
@@ -69,26 +73,28 @@ def run_backtest():
                 position = 0
         
         # Entry Logic (1 day lag: signal at i-1 triggers entry at open of i)
+        # We also ensure we aren't already in a position
         elif df['signal'].iloc[i-1] == 1 and position == 0:
             position = 1
             entry_price = df['Open'].iloc[i]
             entry_date = i
+            entry_atr = df['ATR14'].iloc[i-1]
             
     # 4. Metrics Calculation
     returns = pd.Series(trades)
-    total_return = (1 + returns).prod() - 1
+    total_return = float((1 + returns).prod() - 1) if not returns.empty else 0.0
+    
     cum_rets = (1 + returns).cumprod()
     running_max = cum_rets.cummax()
     drawdown = (cum_rets - running_max) / running_max
     max_drawdown = float(drawdown.min()) if not drawdown.empty else 0.0
     
-    # Sharpe Ratio (annualized)
-    sharpe = (returns.mean() / returns.std()) * np.sqrt(252) if len(returns) > 1 else 0.0
+    sharpe = float((returns.mean() / returns.std()) * np.sqrt(252)) if len(returns) > 1 else 0.0
     
     metrics = {
-        "total_return": float(total_return),
+        "total_return": total_return,
         "max_drawdown": max_drawdown,
-        "sharpe_ratio": float(sharpe),
+        "sharpe_ratio": sharpe,
         "total_trades": int(len(trades))
     }
     
