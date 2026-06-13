@@ -29,8 +29,10 @@ def engineer_node(state: AgentState):
     {thread_context}
     
     REQUIREMENTS:
-    1. **CRITICAL DATA ACCESS**: Use `yfinance` to fetch historical data using explicit `start` and `end` dates.
+    1. **CRITICAL DATA ACCESS**: Use `yfinance` to fetch data.
        - You MUST explicitly set `interval='1d'` in the `yf.download()` call.
+       - **IMPORTANT**: `yfinance` often returns MultiIndex columns. After downloading, you MUST flatten them using: 
+         `if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)`
        - DO NOT use intraday intervals (1m, 5m, 15m, 60m) as they will fail for any backtest period longer than 60 days.
        - If the user asks for "intraday" or "15m", politely explain that we are restricted to Daily data for now and implement using `1d`.
     2. Use `pandas` for data manipulation and signal generation.

@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import json
+import os
 import sys
 from datetime import datetime, timedelta
 
@@ -56,9 +57,15 @@ def run_backtest():
     df = yf.download(
         ticker, start=start_date, end=end_date, interval="1d", progress=False
     )
-    vix = yf.download(
+    vix_df = yf.download(
         "^VIX", start=start_date, end=end_date, interval="1d", progress=False
-    )["Close"]
+    )
+
+    # Flatten MultiIndex if present
+    for d in [df, vix_df]:
+        if isinstance(d.columns, pd.MultiIndex):
+            d.columns = d.columns.get_level_values(0)
+    vix = vix_df["Close"]
 
     if df is None or df.empty or vix is None or vix.empty:
         print("Error: Failed to download sufficient data.")
@@ -148,7 +155,8 @@ def run_backtest():
         "sharpe_ratio": float(sharpe),
     }
 
-    with open("backtest_results.json", "w") as f:
+    results_path = os.getenv("BACKTEST_RESULTS_PATH", "backtest_results.json")
+    with open(results_path, "w") as f:
         json.dump(metrics, f)
 
     print(f"--- Backtest {ticker} ---")
