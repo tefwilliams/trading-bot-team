@@ -12,17 +12,17 @@ def generate_signals(data: pd.DataFrame) -> pd.Series:
     """
     df = data.copy()
     
-    # Calculate Indicators
+    # Calculate RSI(2)
     delta = df['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=2).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=2).mean()
     rs = gain / loss
     df['RSI2'] = 100 - (100 / (1 + rs))
+    
+    # Calculate SMA200
     df['SMA200'] = df['Close'].rolling(window=200).mean()
     
     # Signal generation: 1 for Long, 0 for Flat
-    # Entry Rule: Close > SMA200 AND RSI(2) < 10
-    # Note: We return the trigger signal. The execution logic handles the 1-day lag.
     signals = pd.Series(0, index=df.index)
     mask = (df['Close'] > df['SMA200']) & (df['RSI2'] < 10)
     signals.loc[mask] = 1
@@ -43,7 +43,7 @@ def run_backtest():
     # 2. Generate Signals and Indicators
     signals = generate_signals(df)
     
-    # Recalculate indicators for the backtest loop access
+    # Calculate indicators for the backtest loop
     delta = df['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=2).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=2).mean()
@@ -88,12 +88,15 @@ def run_backtest():
     returns = pd.Series(trades)
     total_return = float((1 + returns).prod() - 1) if not returns.empty else 0.0
     
-    cum_rets = (1 + returns).cumprod()
-    running_max = cum_rets.cummax()
-    drawdown = (cum_rets - running_max) / running_max
-    max_drawdown = float(drawdown.min()) if not drawdown.empty else 0.0
-    
-    sharpe = float((returns.mean() / returns.std()) * np.sqrt(252)) if len(returns) > 1 else 0.0
+    if not returns.empty:
+        cum_rets = (1 + returns).cumprod()
+        running_max = cum_rets.cummax()
+        drawdown = (cum_rets - running_max) / running_max
+        max_drawdown = float(drawdown.min())
+        sharpe = float((returns.mean() / returns.std()) * np.sqrt(252)) if returns.std() != 0 else 0.0
+    else:
+        max_drawdown = 0.0
+        sharpe = 0.0
     
     metrics = {
         "total_return": total_return,
