@@ -219,4 +219,7 @@ def backtester_node(state: AgentState):
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
 
-    return {"messages": [f"Backtester executed code for issue #{issue_number}"]}
+    return {
+        "messages": [f"Backtester executed code for issue #{issue_number}"],
+        "backtest_metrics": metrics_data,
+    }

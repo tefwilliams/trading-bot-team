@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 def generate_signals(data: pd.DataFrame) -> pd.Series:
     """
     Generates signals using T-1 daily regime filters and RSI-2.
-    Expects 'data' to contain: 'Close', 'High', 'Low', 'ADX', 'EMA200', 'VIX_Limit'.
+    Expects 'data' to contain: 'Close', 'High', 'Low', 'ADX', 'EMA200', 'vix', 'VIX_Limit'.
     """
     # RSI-2 Calculation
     delta = data["Close"].diff()
@@ -29,11 +29,11 @@ def generate_signals(data: pd.DataFrame) -> pd.Series:
         (rsi2 < 15)
         & (data["ADX"] < 30)
         & (data["Close"] > data["EMA200"])
-        & (data["Close"] < data["VIX_Limit"])
+        & (data["vix"] < data["VIX_Limit"])
     )
 
     # Short: RSI > 85, ADX < 30, VIX < Limit
-    short_cond = (rsi2 > 85) & (data["ADX"] < 30) & (data["Close"] < data["VIX_Limit"])
+    short_cond = (rsi2 > 85) & (data["ADX"] < 30) & (data["vix"] < data["VIX_Limit"])
 
     signals = pd.Series(0, index=data.index)
     signals[long_cond] = 1
@@ -77,6 +77,7 @@ def run_backtest():
     ).max(axis=1)
     df["ADX"] = tr.rolling(14).mean()
     df["atr"] = tr.rolling(14).mean()
+    df["vix"] = vix
     df["VIX_Limit"] = vix.rolling(window=252).quantile(0.9)
 
     # Generate signals using T-1 shifted data to prevent look-ahead bias

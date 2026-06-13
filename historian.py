@@ -14,27 +14,33 @@ def historian_node(state: AgentState):
     issue_number = state["issue_number"]
     issue = github.get_issue(issue_number)
 
-    # Parse metrics from the backtester's comment
-    comments = list(issue.get_comments())
-    metrics = {"Total Return": "N/A", "Max Drawdown": "N/A", "Sharpe Ratio": "N/A"}
+    # Retrieve structured metrics from state
+    metrics_data = state.get("backtest_metrics") or {}
 
-    for comment in reversed(comments):
-        if "### 📊 Backtest Execution Report" in comment.body:
-            # Extract values from the markdown table
-            for key in metrics.keys():
-                match = re.search(rf"\| {key} \| \*\*(.*?)\*\* \|", comment.body)
-                if match:
-                    metrics[key] = match.group(1)
-            break
+    total_return = (
+        f"{metrics_data.get('total_return', 0) * 100:.2f}%"
+        if "total_return" in metrics_data
+        else "N/A"
+    )
+    max_drawdown = (
+        f"{metrics_data.get('max_drawdown', 0) * 100:.2f}%"
+        if "max_drawdown" in metrics_data
+        else "N/A"
+    )
+    sharpe_ratio = (
+        f"{metrics_data.get('sharpe_ratio', 0):.2f}"
+        if "sharpe_ratio" in metrics_data
+        else "N/A"
+    )
 
     manifest_path = "strategies/performance_manifest.csv"
     new_entry = {
         "issue": issue_number,
         "date": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
         "title": issue.title,
-        "return": metrics["Total Return"],
-        "mdd": metrics["Max Drawdown"],
-        "sharpe": metrics["Sharpe Ratio"],
+        "return": total_return,
+        "mdd": max_drawdown,
+        "sharpe": sharpe_ratio,
         "status": "Integrated",
         "path": f"strategies/strategy_{issue_number}.py",
         "pr": (
@@ -55,7 +61,7 @@ def historian_node(state: AgentState):
 
     github.post_comment(
         issue_number,
-        f"### 📝 Historian Logged\nStrategy metrics ({metrics['Sharpe Ratio']} Sharpe) have been archived to the performance manifest.",
+        f"### 📝 Historian Logged\nStrategy metrics ({sharpe_ratio} Sharpe) have been archived to the performance manifest.",
     )
 
     # Final transition to Manager for PR merge
