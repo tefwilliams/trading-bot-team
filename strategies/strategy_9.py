@@ -2,7 +2,7 @@
 strategies/strategy_9.py
 Adaptive RSI Mean Reversion (ARMR) for NASDAQ-100
 Implements T-1 regime filters, state-based exit logic, partial exits, and portfolio circuit breaker.
-Uses Daily data (1d) to ensure reliability.
+Uses Daily data (1d) to ensure reliability and compatibility.
 """
 
 import pandas as pd
@@ -10,6 +10,7 @@ import numpy as np
 import yfinance as yf
 import json
 import os
+import sys
 from datetime import datetime, timedelta
 
 def generate_signals(data: pd.DataFrame) -> pd.Series:
@@ -24,7 +25,8 @@ def generate_signals(data: pd.DataFrame) -> pd.Series:
     rs = gain / loss
     rsi2 = 100 - (100 / (1 + rs))
     
-    # Logic: Long if RSI < 15, ADX < 30, Price > EMA200, VIX < Limit
+    # Entry Logic:
+    # Long: RSI < 15, ADX < 30, Price > EMA200, VIX < Limit
     long_cond = (rsi2 < 15) & (data['ADX'] < 30) & \
                 (data['Close'] > data['EMA200']) & \
                 (data['Close'] < data['VIX_Limit'])
@@ -44,7 +46,7 @@ def run_backtest():
     """
     ticker = "AAPL"
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=500) # Added buffer for indicators
+    start_date = end_date - timedelta(days=730) # 2 years for EMA200 warm-up
     
     # Load Data
     df = yf.download(ticker, start=start_date, end=end_date, interval='1d', progress=False)
@@ -83,14 +85,17 @@ def run_backtest():
     pnl_history = []
     trades = 0
     
+    # Start from index 200 to ensure EMA200 is valid
     for i in range(200, len(df)):
         if df.index[i].day != df.index[i-1].day: daily_pnl = 0
             
         curr_price = df['Open'].iloc[i]
         
+        # Exit Logic
         if pos != 0:
             stop_loss_hit = (curr_price - entry_price) * pos < -2.5 * entry_atr
-            time_exit = (i - entry_idx) >= 5
+            time_exit = (i - entry_idx) >= 5 # 5 trading days
+            
             if stop_loss_hit or time_exit:
                 trade_pnl = ((curr_price - entry_price) * pos) * pos_size
                 portfolio_equity += trade_pnl
@@ -100,11 +105,15 @@ def run_backtest():
                 trades += 1
                 pos = 0; pos_size = 1.0
         
+        # Entry Logic
         if pos == 0 and signals.iloc[i-1] != 0 and abs(daily_pnl / portfolio_equity) < 0.03:
             if consecutive_losses < 5:
-                pos = signals.iloc[i-1]; entry_price = curr_price
-                entry_atr = df['atr'].iloc[i-1]; entry_idx = i
+                pos = signals.iloc[i-1]
+                entry_price = curr_price
+                entry_atr = df['atr'].iloc[i-1]
+                entry_idx = i
             
+    # Metrics
     returns = np.array(pnl_history)
     total_ret = (portfolio_equity - 100000) / 100000
     sharpe = (np.mean(returns) / np.std(returns)) * np.sqrt(252) if len(returns) > 1 else 0.0
