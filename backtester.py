@@ -5,6 +5,7 @@ import logging
 import sys
 import re
 import ast
+import json
 from github_utils import GitHubManager
 from state import AgentState
 
@@ -153,17 +154,49 @@ def backtester_node(state: AgentState):
                 ]
             }
 
-        # Parse metrics from stdout using regex
-        metrics = {
-            "Total Return": re.search(r"Total Return:\s+([\d\.-]+%)", result.stdout),
-            "Max Drawdown": re.search(r"Max Drawdown:\s+([\d\.-]+%)", result.stdout),
-            "Sharpe Ratio": re.search(r"Sharpe Ratio:\s+([\d\.-]+)", result.stdout),
+        # Parse metrics from the sidecar JSON file
+        metrics_data = {}
+        results_path = os.path.join(os.getcwd(), "backtest_results.json")
+
+        if os.path.exists(results_path):
+            try:
+                with open(results_path, "r") as f:
+                    metrics_data = json.load(f)
+                os.remove(results_path)  # Clean up
+            except (json.JSONDecodeError, IOError) as e:
+                logger.error(
+                    f"Failed to read backtest_results.json for issue #{issue_number}: {e}"
+                )
+        else:
+            logger.warning(
+                f"backtest_results.json not found for issue #{issue_number}. Falling back to N/A."
+            )
+
+        display_metrics = {
+            "Total Return": (
+                f"{metrics_data.get('total_return', 0) * 100:.2f}%"
+                if "total_return" in metrics_data
+                else "N/A"
+            ),
+            "Max Drawdown": (
+                f"{metrics_data.get('max_drawdown', 0) * 100:.2f}%"
+                if "max_drawdown" in metrics_data
+                else "N/A"
+            ),
+            "Sharpe Ratio": (
+                f"{metrics_data.get('sharpe_ratio', 0):.2f}"
+                if "sharpe_ratio" in metrics_data
+                else "N/A"
+            ),
         }
 
         report = "### 📊 Backtest Execution Report\n\n"
         report += "| Metric | Value |\n| :--- | :--- |\n"
-        for label, match in metrics.items():
-            val = match.group(1) if match else "Not Found"
+        for label, val in display_metrics.items():
+            if val == "N/A":
+                logger.warning(
+                    f"Metric {label} missing from JSON output for issue #{issue_number}"
+                )
             report += f"| {label} | **{val}** |\n"
 
         if result.stdout:
