@@ -1,168 +1,104 @@
-"""
-strategies/strategy_9.py
-Adaptive RSI Mean Reversion (ARMR) for NASDAQ-100
-Implements T-1 regime filters, state-based exit logic, partial exits, and portfolio circuit breaker.
-Uses Daily data (1d) to ensure reliability.
-"""
-
+import yfinance as yf
 import pandas as pd
 import numpy as np
-import yfinance as yf
 import json
 import os
-import sys
-from datetime import datetime, timedelta
-
 
 def generate_signals(data: pd.DataFrame) -> pd.Series:
     """
-    Generates signals using T-1 daily regime filters and RSI-2.
-    Expects 'data' to contain: 'Close', 'High', 'Low', 'ADX', 'EMA200', 'vix', 'VIX_Limit'.
+    Generates trading signals based on the ARMR strategy:
+    - Long: SMA200 filter + RSI(2) < 10
+    - Exit: RSI(2) > 70 OR 5-day hold OR 2x ATR stop
     """
-    # RSI-2 Calculation
-    delta = data["Close"].diff()
+    df = data.copy()
+    
+    # Indicators
+    delta = df['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=2).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=2).mean()
     rs = gain / loss
-    rsi2 = 100 - (100 / (1 + rs))
+    df['RSI2'] = 100 - (100 / (1 + rs))
+    df['SMA200'] = df['Close'].rolling(window=200).mean()
+    
+    # ATR for stop loss
+    high_low = df['High'] - df['Low']
+    high_close = np.abs(df['High'] - df['Close'].shift())
+    low_close = np.abs(df['Low'] - df['Close'].shift())
+    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+    df['ATR14'] = tr.rolling(window=14).mean()
 
-    # Logic: Long if RSI < 15, ADX < 30, Price > EMA200, VIX < Limit
-    long_cond = (
-        (rsi2 < 15)
-        & (data["ADX"] < 30)
-        & (data["Close"] > data["EMA200"])
-        & (data["vix"] < data["VIX_Limit"])
-    )
-
-    # Short: RSI > 85, ADX < 30, VIX < Limit
-    short_cond = (rsi2 > 85) & (data["ADX"] < 30) & (data["vix"] < data["VIX_Limit"])
-
-    signals = pd.Series(0, index=data.index)
-    signals[long_cond] = 1
-    signals[short_cond] = -1
-    return signals
-
+    # Signal generation (1 = Enter Long, 0 = Stay Flat)
+    # Entry Rule: SMA200 filter + RSI(2) < 10
+    df['signal'] = 0
+    mask = (df['Close'] > df['SMA200']) & (df['RSI2'] < 10)
+    df.loc[mask, 'signal'] = 1
+    
+    return df['signal']
 
 def run_backtest():
-    """
-    State-based backtest engine implementing ARMR exit logic and risk guardrails.
-    """
-    ticker = "AAPL"
-    end_date = datetime.now()
-    start_date = end_date - timedelta(
-        days=730
-    )  # Increased lookback for 252-day VIX window
+    # 1. Setup Data
+    ticker = "QQQ"
+    df = yf.download(ticker, start="2010-01-01", interval='1d')
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    
+    if df is None or df.empty:
+        raise ValueError("Failed to download data.")
 
-    # Load Data
-    df = yf.download(
-        ticker, start=start_date, end=end_date, interval="1d", progress=False
-    )
-    vix_df = yf.download(
-        "^VIX", start=start_date, end=end_date, interval="1d", progress=False
-    )
-
-    # Flatten MultiIndex if present
-    for d in [df, vix_df]:
-        if isinstance(d.columns, pd.MultiIndex):
-            d.columns = d.columns.get_level_values(0)
-    vix = vix_df["Close"]
-
-    if df is None or df.empty or vix is None or vix.empty:
-        print("Error: Failed to download sufficient data.")
-        sys.exit(1)
-
-    # Prepare Indicators
-    df["EMA200"] = df["Close"].ewm(span=200).mean()
-    # True Range (TR) for ADX/ATR Proxy
-    prev_close = df["Close"].shift(1)
-    tr = pd.concat(
-        [
-            df["High"] - df["Low"],
-            abs(df["High"] - prev_close),
-            abs(df["Low"] - prev_close),
-        ],
-        axis=1,
-    ).max(axis=1)
-    df["ADX"] = tr.rolling(14).mean()
-    df["atr"] = tr.rolling(14).mean()
-    df["vix"] = vix
-    df["VIX_Limit"] = vix.rolling(window=252).quantile(0.9)
-
-    # Generate signals using T-1 shifted data to prevent look-ahead bias
-    # Align the shifted features to the index of the original df
-    df_shifted = df.shift(1)
-    # Ensure signal generation uses the current Close for logic alignment
-    df_input = df_shifted.copy()
-    df_input["Close"] = df["Close"]
-
-    signals = generate_signals(df_input)
-
-    # Backtest Loop
-    pos, entry_price, entry_atr, entry_idx = 0, 0, 0, 0
-    pos_size, consecutive_losses = 1.0, 0
-    portfolio_equity, daily_pnl = 100000.0, 0.0
-    pnl_history = []
-
-    for i in range(1, len(df)):
-        if df.index[i].day != df.index[i - 1].day:
-            daily_pnl = 0
-
-        curr_price = df["Open"].iloc[i]
-
+    # 2. Generate Signals
+    signals = generate_signals(df)
+    
+    # 3. Simulate Trades
+    position = 0
+    entry_price = 0
+    entry_date = None
+    trades = []
+    
+    # Parameters
+    max_pos_size = 0.20
+    
+    for i in range(200, len(df)):
+        current_date = df.index[i]
+        
         # Exit Logic
-        if pos != 0:
-            stop_loss_hit = (curr_price - entry_price) * pos < -2.5 * entry_atr
-            time_exit = (i - entry_idx) >= 5  # 5 trading days
-
-            if stop_loss_hit or time_exit:
-                trade_pnl = ((curr_price - entry_price) * pos) * pos_size
-                portfolio_equity += trade_pnl
-                daily_pnl += trade_pnl
-                consecutive_losses = consecutive_losses + 1 if trade_pnl < 0 else 0
-                pnl_history.append(trade_pnl)
-                pos = 0
-                pos_size = 1.0
-
-        # Entry Logic
-        if (
-            pos == 0
-            and signals.iloc[i - 1] != 0
-            and abs(daily_pnl / portfolio_equity) < 0.03
-        ):
-            if consecutive_losses < 5:
-                pos = signals.iloc[i - 1]
-                entry_price = curr_price
-                entry_atr = df["atr"].iloc[i - 1]
-                entry_idx = i
-
-    # Metrics
-    returns = np.array(pnl_history)
-    total_return = (portfolio_equity - 100000) / 100000
-    sharpe = (
-        (np.mean(returns) / np.std(returns)) * np.sqrt(252) if len(returns) > 1 else 0
-    )
-
-    # Calculate Max Drawdown
-    cum_returns = np.cumsum(pnl_history) + 100000
-    running_max = np.maximum.accumulate(cum_returns)
-    drawdown = (cum_returns - running_max) / running_max
-    max_drawdown = np.min(drawdown) if len(drawdown) > 0 else 0
-
-    # OUTPUT CONTRACT: Write results to JSON sidecar
+        if position == 1:
+            days_held = (i - entry_date)
+            rsi_exit = df['RSI2'].iloc[i] > 70
+            atr_stop = df['Close'].iloc[i] <= (entry_price - (2 * df['ATR14'].iloc[entry_date]))
+            time_stop = days_held >= 5
+            
+            if rsi_exit or atr_stop or time_stop:
+                exit_price = df['Open'].iloc[i]
+                trades.append((exit_price / entry_price) - 1)
+                position = 0
+        
+        # Entry Logic (1 day lag as per spec)
+        elif signals.iloc[i-1] == 1 and position == 0:
+            position = 1
+            entry_price = df['Open'].iloc[i]
+            entry_date = i
+            
+    # 4. Metrics Calculation
+    returns = pd.Series(trades)
+    total_return = (1 + returns).prod() - 1
+    cum_rets = (1 + returns).cumprod()
+    running_max = cum_rets.cummax()
+    drawdown = (cum_rets - running_max) / running_max
+    max_drawdown = drawdown.min() if not drawdown.empty else 0
+    
+    sharpe = (returns.mean() / returns.std()) * np.sqrt(252) if len(returns) > 1 else 0
+    
     metrics = {
         "total_return": float(total_return),
         "max_drawdown": float(max_drawdown),
         "sharpe_ratio": float(sharpe),
+        "total_trades": int(len(trades))
     }
-
-    results_path = os.getenv("BACKTEST_RESULTS_PATH", "backtest_results.json")
-    with open(results_path, "w") as f:
+    
+    # 5. Export
+    output_path = os.getenv('BACKTEST_RESULTS_PATH', 'backtest_results.json')
+    with open(output_path, 'w') as f:
         json.dump(metrics, f)
-
-    print(f"--- Backtest {ticker} ---")
-    print(f"Total Return: {total_return:.2%}")
-    print(f"Sharpe Ratio: {sharpe:.2f}")
-
 
 if __name__ == "__main__":
     run_backtest()
