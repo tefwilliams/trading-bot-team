@@ -18,21 +18,21 @@ def generate_signals(data: pd.DataFrame) -> pd.Series:
     Generates signals using T-1 daily regime filters and RSI-2.
     Expects 'data' to contain: 'Close', 'ADX', 'EMA200', 'VIX_Limit'.
     """
-    # RSI-2 Calculation (using a longer series to ensure stability)
+    # RSI-2 Calculation
     delta = data['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=2).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=2).mean()
     rs = gain / loss
     rsi2 = 100 - (100 / (1 + rs))
     
-    # Entry Logic:
-    # Long: RSI < 30 (more conservative than 15 for daily), ADX < 30, Price > EMA200, VIX < Limit
-    long_cond = (rsi2 < 30) & (data['ADX'] < 30) & \
+    # Entry Logic (Relaxed thresholds for daily data backtesting)
+    # Long: RSI < 40, ADX < 35, Price > EMA200, VIX < Limit
+    long_cond = (rsi2 < 40) & (data['ADX'] < 35) & \
                 (data['Close'] > data['EMA200']) & \
                 (data['Close'] < data['VIX_Limit'])
     
-    # Short: RSI > 70 (more conservative than 85 for daily), ADX < 30, VIX < Limit
-    short_cond = (rsi2 > 70) & (data['ADX'] < 30) & \
+    # Short: RSI > 60, ADX < 35, VIX < Limit
+    short_cond = (rsi2 > 60) & (data['ADX'] < 35) & \
                  (data['Close'] < data['VIX_Limit'])
     
     signals = pd.Series(0, index=data.index)
@@ -46,7 +46,7 @@ def run_backtest():
     """
     ticker = "AAPL"
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=730) # 2 years for EMA200 warm-up
+    start_date = end_date - timedelta(days=1000) # Ensure enough warm-up for EMA200
     
     # Load Data
     df = yf.download(ticker, start=start_date, end=end_date, interval='1d', progress=False)
