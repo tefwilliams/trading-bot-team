@@ -180,21 +180,18 @@ def backtester_node(state: AgentState):
                 )
 
         # Diagnostic check for zero-signal strategies
-        if (
-            metrics_data.get("total_return") == 0
-            and metrics_data.get("sharpe_ratio") == 0
-        ):
-            logger.warning(
-                f"Issue #{issue_number}: Backtest produced exactly 0.0. Likely no signals were generated."
-            )
         total_trades = metrics_data.get("total_trades", 0)
         if total_trades == 0:
             error_msg = "### ⚠️ Strategy Inactive\nThe backtest finished with **0 trades**. This usually means the entry criteria are too restrictive or the indicators are returning `NaN` due to a lack of warm-up data.\n\n"
             error_msg += "**Action Required:** Please simplify the entry logic or increase the data lookback window."
-            
+
             github.post_comment(issue_number, error_msg)
             github.transition_role(issue_number, "engineer", "stage:implementation")
-            return {"messages": [f"Backtester: Zero trades detected for issue #{issue_number}"]}
+            return {
+                "messages": [
+                    f"Backtester: Zero trades detected for issue #{issue_number}"
+                ]
+            }
 
         else:
             # If JSON is missing but returncode was 0, the script likely exited early or failed to write

@@ -46,11 +46,13 @@ def engineer_node(state: AgentState):
     6. **OUTPUT CONTRACT**: At the very end of `run_backtest()`, you MUST write the final metrics to a JSON file.
        - Implementation detail: Use `os.getenv('BACKTEST_RESULTS_PATH', 'backtest_results.json')` to get the filename.
        - `import json` and use `json.dump(metrics, f)`.
-       - Use exact keys: `"total_return"`, `"max_drawdown"`, `"sharpe_ratio"`.
+       - Use exact keys: `"total_return"`, `"max_drawdown"`, `"sharpe_ratio"`, `"total_trades"`.
        - Do NOT include percentage signs in the JSON values; use raw floats (e.g., 0.15 for 15%).
+       - `"total_trades"` MUST be an integer representing the number of completed round-trip trades.
        - This is critical for automated parsing.
     7. **ENTRY POINT**: You MUST include the `if __name__ == "__main__": run_backtest()` block at the bottom of the script.
-    8. **ROBUST DATA HANDLING**: You MUST verify that the downloaded DataFrames are not None and not empty. If data is missing, you MUST `import sys` and call `sys.exit(1)` after printing a descriptive error. DO NOT simply use `return`, as the orchestrator needs a non-zero exit code to detect the failure.
+    8. **ROBUST DATA HANDLING**: You MUST verify that the downloaded DataFrames are not None and not empty.
+       - **WARM-UP PERIOD**: Ensure indicators with lookbacks (like EMA200 or 252-day VIX) have enough data. If data is insufficient for the indicators to generate non-NaN values, print a warning.
     9. Use vectorized operations where possible for performance.
     
     IMPORTANT: Save the strategy to `strategies/strategy_{state["issue_number"]}.py`.
