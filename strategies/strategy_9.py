@@ -18,7 +18,7 @@ def generate_signals(data: pd.DataFrame) -> pd.Series:
     Generates signals using T-1 daily regime filters and RSI-2.
     Expects 'data' to contain: 'Close', 'ADX', 'EMA200', 'VIX_Limit'.
     """
-    # RSI-2 Calculation
+    # RSI-2 Calculation (using a longer series to ensure stability)
     delta = data['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=2).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=2).mean()
@@ -26,13 +26,13 @@ def generate_signals(data: pd.DataFrame) -> pd.Series:
     rsi2 = 100 - (100 / (1 + rs))
     
     # Entry Logic:
-    # Long: RSI < 15, ADX < 30, Price > EMA200, VIX < Limit
-    long_cond = (rsi2 < 15) & (data['ADX'] < 30) & \
+    # Long: RSI < 30 (more conservative than 15 for daily), ADX < 30, Price > EMA200, VIX < Limit
+    long_cond = (rsi2 < 30) & (data['ADX'] < 30) & \
                 (data['Close'] > data['EMA200']) & \
                 (data['Close'] < data['VIX_Limit'])
     
-    # Short: RSI > 85, ADX < 30, VIX < Limit
-    short_cond = (rsi2 > 85) & (data['ADX'] < 30) & \
+    # Short: RSI > 70 (more conservative than 85 for daily), ADX < 30, VIX < Limit
+    short_cond = (rsi2 > 70) & (data['ADX'] < 30) & \
                  (data['Close'] < data['VIX_Limit'])
     
     signals = pd.Series(0, index=data.index)
@@ -94,7 +94,7 @@ def run_backtest():
         # Exit Logic
         if pos != 0:
             stop_loss_hit = (curr_price - entry_price) * pos < -2.5 * entry_atr
-            time_exit = (i - entry_idx) >= 5 # 5 trading days
+            time_exit = (i - entry_idx) >= 10 # 10 trading days
             
             if stop_loss_hit or time_exit:
                 trade_pnl = ((curr_price - entry_price) * pos) * pos_size
