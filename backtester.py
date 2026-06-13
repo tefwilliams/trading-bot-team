@@ -44,6 +44,15 @@ def validate_interface(code: str) -> list[str]:
             if len(sig.args.args) != 0:
                 errors.append("`run_backtest` must accept no arguments.")
 
+        # Check if run_backtest is actually called
+        calls = [
+            node.func.id
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and hasattr(node.func, "id")
+        ]
+        if "run_backtest" not in calls:
+            errors.append("The code defines `run_backtest` but never calls it.")
+
     except SyntaxError as e:
         errors.append(f"Syntax Error in generated code: {e}")
     except Exception as e:
@@ -60,6 +69,7 @@ def backtester_node(state: AgentState):
     github = GitHubManager()
     issue_number = state["issue_number"]
 
+    results_path = os.path.join(os.getcwd(), f"backtest_results_{issue_number}.json")
     code = github.get_latest_code_block(issue_number)
 
     if not code:
@@ -94,20 +104,18 @@ def backtester_node(state: AgentState):
         suffix=".py", delete=False, mode="w", encoding="utf-8"
     ) as tmp:
         # Setup environment for headless/automated execution
-        tmp.write("import matplotlib\nmatplotlib.use('Agg')\n")
+        tmp.write("import matplotlib\nimport os\nmatplotlib.use('Agg')\n")
         # Disable yfinance persistent cache to avoid SQLite 'database is locked' errors
         tmp.write("import yfinance as yf\nimport tempfile\n")
         tmp.write(
             "try:\n    yf.set_tz_cache_location(tempfile.gettempdir())\nexcept Exception:\n    pass\n"
         )
+
+        # Inject the unique results path into the script environment
+        tmp.write(f"os.environ['BACKTEST_RESULTS_PATH'] = r'{results_path}'\n")
         tmp.write(code)
 
-        # Ensure the backtest is actually triggered if the LLM forgot the entry point
-        if "run_backtest()" not in code.split("\n")[-5:]:
-            tmp.write("\n\nif __name__ == '__main__':\n    run_backtest()\n")
-
         tmp_path = tmp.name
-
     try:
         # Execute the code. Timeout after 120s to prevent hanging.
         result = subprocess.run(
@@ -160,7 +168,6 @@ def backtester_node(state: AgentState):
 
         # Parse metrics from the sidecar JSON file
         metrics_data = {}
-        results_path = os.path.join(os.getcwd(), "backtest_results.json")
 
         if os.path.exists(results_path):
             try:
@@ -176,7 +183,7 @@ def backtester_node(state: AgentState):
             error_msg = "### ❌ Backtest Logic Error\nThe script finished without producing `backtest_results.json`. This usually means a data download failed or a logic error caused an early `return`."
             if result.stdout:
                 error_msg += f"\n\n**Console Output:**\n```\n{result.stdout}\n```"
-            
+
             github.post_comment(issue_number, error_msg)
             github.transition_role(issue_number, "engineer", "stage:implementation")
             return {

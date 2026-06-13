@@ -37,3 +37,4 @@ Thumbs.db
 data/
 *.csv
 *.parquet
+backtest_results.json

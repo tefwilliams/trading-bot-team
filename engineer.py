@@ -41,8 +41,9 @@ def engineer_node(state: AgentState):
        - This function must return a Series of signals (1 for Long, 0 for Flat, -1 for Short) indexed by timestamp.
        - All indicator calculations (RSI, SMA, etc.) must be contained or called within this function.
        - Provide a `run_backtest()` function (with no arguments) that loads data and calls `generate_signals`.
-    6. **OUTPUT CONTRACT**: At the very end of `run_backtest()`, you MUST write the final metrics to a file named `backtest_results.json` in the current directory. 
-       - Implementation detail: `import json` and use `json.dump(metrics, f)`.
+    6. **OUTPUT CONTRACT**: At the very end of `run_backtest()`, you MUST write the final metrics to a JSON file.
+       - Implementation detail: Use `os.getenv('BACKTEST_RESULTS_PATH', 'backtest_results.json')` to get the filename.
+       - `import json` and use `json.dump(metrics, f)`.
        - Use exact keys: `"total_return"`, `"max_drawdown"`, `"sharpe_ratio"`.
        - Do NOT include percentage signs in the JSON values; use raw floats (e.g., 0.15 for 15%).
        - This is critical for automated parsing.

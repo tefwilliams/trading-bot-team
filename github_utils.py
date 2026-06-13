@@ -1,4 +1,5 @@
 import os
+import re
 from github import Github, GithubException
 from dotenv import load_dotenv
 
@@ -83,11 +84,10 @@ class GitHubManager:
             raise e
 
     def extract_code(self, text: str):
-        if "```python" in text:
-            start = text.find("```python") + 9
-            end = text.find("```", start)
-            return text[start:end].strip()
-        return text.strip()
+        """Extracts the first python code block found in the text."""
+        pattern = r"```(?:python)?\s*(.*?)```"
+        match = re.search(pattern, text, re.DOTALL)
+        return match.group(1).strip() if match else text.strip()
 
     def get_role_issues(self, role: str):
         """Find issues where the next action is for a specific role."""
