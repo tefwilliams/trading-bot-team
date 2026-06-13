@@ -97,8 +97,8 @@ def engineer_node(state: AgentState):
     )
     github.post_comment(state["issue_number"], comment_body)
 
-    # Transition the ticket: Engineer -> Reviewer for AI code review
-    github.transition_role(state["issue_number"], "reviewer", "stage:review")
+    # Transition to the backtester status
+    github.set_status(state["issue_number"], "backtester")
 
     return {
         "messages": [

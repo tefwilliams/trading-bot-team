@@ -73,7 +73,7 @@ def run_orchestrator():
             ]
 
             for role in roles:
-                tasks = github.get_role_issues(role)
+                tasks = github.get_status_issues(role)
                 for issue in tasks:
                     logger.info(
                         f"Processing {role.upper()} Task: [#{issue.number}] {issue.title}"

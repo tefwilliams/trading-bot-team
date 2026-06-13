@@ -77,7 +77,7 @@ def backtester_node(state: AgentState):
             issue_number,
             "### ❌ Backtest Failed\nCould not find a Python code block to execute in the PR or comments.",
         )
-        github.transition_role(issue_number, "engineer", "stage:implementation")
+        github.set_status(issue_number, "engineer")
         return {"messages": ["Backtester failed: No code found"]}
 
     # Step 1: Structural Validation
@@ -92,7 +92,7 @@ def backtester_node(state: AgentState):
         error_msg += "\n**Note to Engineer:** Please ensure your code includes the required `generate_signals` and `run_backtest` functions."
 
         github.post_comment(issue_number, error_msg)
-        github.transition_role(issue_number, "engineer", "stage:implementation")
+        github.set_status(issue_number, "engineer")
         return {"messages": ["Backtester failed interface validation"]}
 
     github.post_comment(
@@ -140,7 +140,7 @@ def backtester_node(state: AgentState):
             error_report += f"**Standard Error:**\n```\n{result.stderr}\n```\n"
             error_report += f"**Standard Output:**\n```\n{result.stdout}\n```"
             github.post_comment(issue_number, error_report)
-            github.transition_role(issue_number, "engineer", "stage:implementation")
+            github.set_status(issue_number, "engineer")
             return {
                 "messages": [
                     f"Backtester failed: Runtime error in issue #{issue_number}"
@@ -159,7 +159,7 @@ def backtester_node(state: AgentState):
 
             error_report += f"**Console Output:**\n```\n{result.stdout}\n```"
             github.post_comment(issue_number, error_report)
-            github.transition_role(issue_number, "engineer", "stage:implementation")
+            github.set_status(issue_number, "engineer")
             return {
                 "messages": [
                     f"Backtester failed: Data download failure in issue #{issue_number}"
@@ -186,7 +186,7 @@ def backtester_node(state: AgentState):
             error_msg += "**Action Required:** Please simplify the entry logic or increase the data lookback window."
 
             github.post_comment(issue_number, error_msg)
-            github.transition_role(issue_number, "engineer", "stage:implementation")
+            github.set_status(issue_number, "engineer")
             return {
                 "messages": [
                     f"Backtester: Zero trades detected for issue #{issue_number}"
@@ -200,7 +200,7 @@ def backtester_node(state: AgentState):
                 error_msg += f"\n\n**Console Output:**\n```\n{result.stdout}\n```"
 
             github.post_comment(issue_number, error_msg)
-            github.transition_role(issue_number, "engineer", "stage:implementation")
+            github.set_status(issue_number, "engineer")
             return {
                 "messages": [
                     f"Backtester failed: No JSON output for issue #{issue_number}"
@@ -241,15 +241,15 @@ def backtester_node(state: AgentState):
 
         github.post_comment(issue_number, report)
 
-        # Transition to Historian for automated performance logging
-        github.transition_role(issue_number, "historian", "stage:backtest")
+        # Self-Correction Success: Transition to Reviewer for qualitative analysis
+        github.set_status(issue_number, "reviewer")
 
     except subprocess.TimeoutExpired:
         github.post_comment(
             issue_number,
             "### ❌ Backtest Timed Out\nThe strategy execution exceeded the 120s limit.",
         )
-        github.transition_role(issue_number, "engineer", "stage:implementation")
+        github.set_status(issue_number, "engineer")
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)

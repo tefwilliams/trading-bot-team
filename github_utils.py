@@ -39,18 +39,15 @@ class GitHubManager:
 
         issue.set_labels(*new_labels)
 
-    def transition_role(self, issue_number: int, new_role: str, new_stage: str):
-        """Standardized way to move a ticket between agents and stages."""
+    def set_status(self, issue_number: int, new_status: str):
+        """Standardized way to move a ticket to a new status/node."""
         issue = self.get_issue(issue_number)
         current_labels = [l.name for l in issue.get_labels()]
 
-        # Filter out any existing role or stage labels
-        cleaned_labels = [
-            l for l in current_labels if not l.startswith(("role:", "stage:"))
-        ]
+        # Filter out any existing status labels
+        cleaned_labels = [l for l in current_labels if not l.startswith("status:")]
 
-        cleaned_labels.append(f"role:{new_role}")
-        cleaned_labels.append(new_stage)
+        cleaned_labels.append(f"status:{new_status}")
         issue.set_labels(*cleaned_labels)
 
     def ensure_branch(self, branch_name: str, base_branch: str = "main"):
@@ -89,9 +86,9 @@ class GitHubManager:
         match = re.search(pattern, text, re.DOTALL)
         return match.group(1).strip() if match else text.strip()
 
-    def get_role_issues(self, role: str):
-        """Find issues where the next action is for a specific role."""
-        label = f"role:{role}"
+    def get_status_issues(self, status: str):
+        """Find issues where the next action matches a specific status/node."""
+        label = f"status:{status}"
         return self.repo.get_issues(labels=[label], state="open")
 
     def create_issue(self, title: str, body: str, labels: list[str]):

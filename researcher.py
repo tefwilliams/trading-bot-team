@@ -50,7 +50,7 @@ def researcher_node(state: AgentState):
     github.post_comment(state["issue_number"], content)
 
     # Transition the ticket: Researcher -> Reviewer
-    github.transition_role(state["issue_number"], "reviewer", "stage:review")
+    github.set_status(state["issue_number"], "reviewer")
 
     return {
         "messages": [

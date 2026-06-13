@@ -65,6 +65,6 @@ def historian_node(state: AgentState):
     )
 
     # Final transition to Manager for PR merge
-    github.transition_role(issue_number, "manager", "stage:review")
+    github.set_status(issue_number, "manager")
 
     return {"messages": [f"Historian logged performance for issue #{issue_number}"]}

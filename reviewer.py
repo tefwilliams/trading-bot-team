@@ -64,16 +64,14 @@ def reviewer_node(state: AgentState):
             pr is not None or "```python" in thread_context or "```python" in content
         )
         next_role = "risk_manager" if is_code else "engineer"
-        next_stage = "stage:review" if is_code else "stage:approved-spec"
 
-        github.transition_role(state["issue_number"], next_role, next_stage)
+        github.set_status(state["issue_number"], next_role)
     else:
         # Rejected: Kick back to whoever did the work
         # We check the thread to see who to blame
         is_code = "```python" in thread_context
         next_role = "engineer" if is_code else "researcher"
-        next_stage = "stage:implementation" if is_code else "stage:proposal"
-        github.transition_role(state["issue_number"], next_role, next_stage)
+        github.set_status(state["issue_number"], next_role)
 
     return {
         "messages": [

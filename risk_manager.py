@@ -51,12 +51,12 @@ def risk_manager_node(state: AgentState):
     )
 
     if "[SAFE]" in content.upper():
-        # Pass to the Backtester for performance validation
-        github.transition_role(state["issue_number"], "backtester", "stage:backtest")
+        # Approval: Performance was already validated, move to Historian for final logging
+        github.set_status(state["issue_number"], "historian")
     else:
         # Back to the Engineer or Researcher
         is_code = "```python" in thread_context
         next_role = "engineer" if is_code else "researcher"
-        github.transition_role(state["issue_number"], next_role, "stage:rejected")
+        github.set_status(state["issue_number"], next_role)
 
     return {"messages": [f"Risk Manager evaluated issue #{state['issue_number']}"]}
