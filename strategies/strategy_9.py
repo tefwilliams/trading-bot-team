@@ -2,7 +2,7 @@
 strategies/strategy_9.py
 Adaptive RSI Mean Reversion (ARMR) for NASDAQ-100
 Implements T-1 regime filters, state-based exit logic, partial exits, and portfolio circuit breaker.
-Uses Daily data (1d) to ensure reliability and compliance with Yahoo Finance constraints.
+Uses Daily data (1d) to ensure reliability.
 """
 
 import pandas as pd
@@ -10,12 +10,13 @@ import numpy as np
 import yfinance as yf
 import json
 import sys
+import os
 from datetime import datetime, timedelta
 
 def generate_signals(data: pd.DataFrame) -> pd.Series:
     """
     Generates signals using T-1 daily regime filters and RSI-2.
-    Expects 'data' to contain: 'Close', 'High', 'Low', 'ADX', 'EMA200', 'VIX_Limit'.
+    Expects 'data' to contain: 'Close', 'ADX', 'EMA200', 'VIX_Limit'.
     """
     # RSI-2 Calculation
     delta = data['Close'].diff()
@@ -24,7 +25,7 @@ def generate_signals(data: pd.DataFrame) -> pd.Series:
     rs = gain / loss
     rsi2 = 100 - (100 / (1 + rs))
     
-    # Long: RSI < 15, ADX < 30, Price > EMA200, VIX < Limit
+    # Logic: Long if RSI < 15, ADX < 30, Price > EMA200, VIX < Limit
     long_cond = (rsi2 < 15) & (data['ADX'] < 30) & \
                 (data['Close'] > data['EMA200']) & \
                 (data['Close'] < data['VIX_Limit'])
@@ -64,7 +65,7 @@ def run_backtest():
     df['atr'] = tr.rolling(14).mean()
     df['VIX_Limit'] = vix.rolling(window=252).quantile(0.9)
     
-    # Generate signals using T-1 shifted data
+    # Generate signals using T-1 shifted data to prevent look-ahead bias
     df_shifted = df.shift(1)
     df_input = pd.DataFrame(index=df.index)
     df_input['Close'] = df['Close']
@@ -82,11 +83,14 @@ def run_backtest():
     
     for i in range(1, len(df)):
         if df.index[i].day != df.index[i-1].day: daily_pnl = 0
+            
         curr_price = df['Open'].iloc[i]
         
+        # Exit Logic
         if pos != 0:
             stop_loss_hit = (curr_price - entry_price) * pos < -2.5 * entry_atr
-            time_exit = (i - entry_idx) >= 5
+            time_exit = (i - entry_idx) >= 5 # 5 trading days
+            
             if stop_loss_hit or time_exit:
                 trade_pnl = ((curr_price - entry_price) * pos) * pos_size
                 portfolio_equity += trade_pnl
@@ -95,6 +99,7 @@ def run_backtest():
                 pnl_history.append(trade_pnl)
                 pos = 0; pos_size = 1.0
         
+        # Entry Logic
         if pos == 0 and signals.iloc[i-1] != 0 and abs(daily_pnl / portfolio_equity) < 0.03:
             if consecutive_losses < 5:
                 pos = signals.iloc[i-1]; entry_price = curr_price
@@ -111,7 +116,8 @@ def run_backtest():
         "sharpe_ratio": float(sharpe)
     }
     
-    with open('backtest_results.json', 'w') as f:
+    output_path = os.getenv('BACKTEST_RESULTS_PATH', 'backtest_results.json')
+    with open(output_path, 'w') as f:
         json.dump(metrics, f)
 
 if __name__ == "__main__":
