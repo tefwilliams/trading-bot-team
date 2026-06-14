@@ -5,12 +5,12 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.sqlite import SqliteSaver
 from github_utils import GitHubManager
 from state import AgentState
-from researcher import researcher_node
-from engineer import engineer_node
-from reviewer import reviewer_node
-from risk_manager import risk_manager_node
-from backtester import backtester_node
-from historian import historian_node
+from nodes.researcher import researcher_node
+from nodes.engineer import engineer_node
+from nodes.reviewer import reviewer_node
+from nodes.risk_manager import risk_manager_node
+from nodes.backtester import backtester_node
+from nodes.historian import historian_node
 
 # Configure logging for professional visibility into agent actions
 logging.basicConfig(

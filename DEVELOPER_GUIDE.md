@@ -20,7 +20,7 @@ AI assistants must only create or look for files within this established framewo
 
 | Directory/File | Responsibility | Rule / Invariant |
 | :--- | :--- | :--- |
-| `/nodes/` | LangGraph node execution logic | Every file must house pure function nodes. (Currently in root). |
+| `/nodes/` | LangGraph node execution logic | Every file must house pure function nodes. |
 | `/tools/` | External agent actions & APIs | Must contain LangChain `@tool` definitions. |
 | `/prompts/` | System prompts & LLM instructions | Isolated from code strings; strictly plain text/markdown. |
 | `/docs/` | System design specifications | Kept high-level; details are offloaded here. |
