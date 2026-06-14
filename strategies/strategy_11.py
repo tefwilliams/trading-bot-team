@@ -4,18 +4,18 @@ import numpy as np
 import json
 import os
 
-def generate_signals(df: pd.DataFrame, vix: pd.DataFrame) -> pd.DataFrame:
+def generate_signals(data: pd.DataFrame, vix_data: pd.Series) -> pd.DataFrame:
     """
-    Generates trading signals based on the VSRM strategy.
+    Generates trading signals for the VSRM strategy.
+    Entry: VIX < 30 AND Close > SMA200 AND 20-day Z-Score < -2.0.
     """
-    df = df.copy()
-    df['VIX'] = vix['Close'].reindex(df.index).ffill()
+    df = data.copy()
     
-    # Indicators
+    # Calculate Indicators
     df['SMA200'] = df['Close'].rolling(window=200).mean()
-    df['Mean20'] = df['Close'].rolling(window=20).mean()
-    df['Std20'] = df['Close'].rolling(window=20).std()
-    df['ZScore'] = (df['Close'] - df['Mean20']) / df['Std20']
+    rolling_mean = df['Close'].rolling(window=20).mean()
+    rolling_std = df['Close'].rolling(window=20).std()
+    df['ZScore'] = (df['Close'] - rolling_mean) / rolling_std
     
     # ATR for Stop Loss
     high_low = df['High'] - df['Low']
@@ -24,7 +24,10 @@ def generate_signals(df: pd.DataFrame, vix: pd.DataFrame) -> pd.DataFrame:
     tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
     df['ATR14'] = tr.rolling(window=14).mean()
     
-    # Entry Rule: VIX < 30 AND Close > SMA200 AND ZScore < -2.0
+    # Merge VIX
+    df['VIX'] = vix_data.reindex(df.index).ffill()
+    
+    # Signal: 1 for Long, 0 for Flat
     df['signal'] = 0
     mask = (df['VIX'] < 30) & (df['Close'] > df['SMA200']) & (df['ZScore'] < -2.0)
     df.loc[mask, 'signal'] = 1
@@ -34,18 +37,20 @@ def generate_signals(df: pd.DataFrame, vix: pd.DataFrame) -> pd.DataFrame:
 def run_backtest():
     # 1. Setup Data
     ticker = "QQQ"
-    df = yf.download(ticker, start="2010-01-01", interval='1d')
-    vix = yf.download("^VIX", start="2010-01-01", interval='1d')
+    vix_ticker = "^VIX"
     
-    for d in [df, vix]:
+    df = yf.download(ticker, start="2010-01-01", interval='1d')
+    vix_df = yf.download(vix_ticker, start="2010-01-01", interval='1d')
+    
+    for d in [df, vix_df]:
         if isinstance(d.columns, pd.MultiIndex):
             d.columns = d.columns.get_level_values(0)
     
-    if df is None or df.empty or vix is None or vix.empty:
+    if df is None or df.empty or vix_df is None or vix_df.empty:
         raise ValueError("Failed to download data.")
 
     # 2. Generate Signals
-    df = generate_signals(df, vix)
+    df = generate_signals(df, vix_df['Close'])
     
     # 3. Simulate Trades
     pos_size = 0.20
@@ -60,14 +65,17 @@ def run_backtest():
             days_held = (i - entry_date)
             stop_price = entry_price - (1.5 * entry_atr)
             
+            z_score = df['ZScore'].iloc[i]
+            
             # Exit Conditions
-            rsi_exit = df['ZScore'].iloc[i] >= 0
+            rsi_exit = z_score >= 0
             atr_stop = df['Low'].iloc[i] <= stop_price
             time_stop = days_held >= 10
             
             if rsi_exit or atr_stop or time_stop:
                 exit_price = stop_price if atr_stop else df['Open'].iloc[i]
-                trades.append(((exit_price / entry_price) - 1) * pos_size)
+                trade_ret = ((exit_price / entry_price) - 1) * pos_size
+                trades.append(trade_ret)
                 in_position = False
         
         elif df['signal'].iloc[i-1] == 1 and not in_position:
@@ -78,19 +86,24 @@ def run_backtest():
             
     # 4. Metrics
     returns = pd.Series(trades)
-    benchmark_ret = (df['Close'].iloc[-1] / df['Close'].iloc[200]) - 1
+    total_return = float(returns.sum())
     
-    # Cumulative return for drawdown (using 100% exposure simulation)
-    cum_rets = (1 + (returns / pos_size)).cumprod()
-    running_max = cum_rets.cummax()
-    drawdown = (cum_rets - running_max) / running_max
+    if not returns.empty:
+        # Calculate drawdown based on 100% equivalent for metric comparability
+        cum_rets = (1 + (returns / pos_size)).cumprod()
+        running_max = cum_rets.cummax()
+        drawdown = (cum_rets - running_max) / running_max
+        max_drawdown = float(drawdown.min())
+        sharpe = float((returns.mean() / returns.std()) * np.sqrt(252)) if returns.std() != 0 else 0.0
+    else:
+        max_drawdown = 0.0
+        sharpe = 0.0
     
     metrics = {
-        "total_return": float(returns.sum()),
-        "max_drawdown": float(drawdown.min()) if not returns.empty else 0.0,
-        "sharpe_ratio": float((returns.mean() / returns.std()) * np.sqrt(252)) if returns.std() != 0 else 0.0,
-        "total_trades": int(len(trades)),
-        "benchmark_return": float(benchmark_ret)
+        "total_return": total_return,
+        "max_drawdown": max_drawdown,
+        "sharpe_ratio": sharpe,
+        "total_trades": int(len(trades))
     }
     
     # 5. Export
