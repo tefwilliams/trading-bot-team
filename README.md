@@ -16,10 +16,8 @@ The system uses GitHub as its state machine and user interface. Agents communica
 ## Status
 ### Agent Workflow Diagram
 
-**Active Development.** Core orchestration loop is functional.
-- Researcher, Engineer, Reviewer, Risk Manager, and Product Manager agents are implemented.
-Active Development.** Core orchestration loop is functional.
-- Researcher, Engineer, Reviewer, and Risk Manager agents are implemented.
+**Active Development.** Core orchestration loop is functional:
+- Researcher, Engineer, Reviewer, Risk Manager, and Historian agents are implemented.
 - Automated Backtester node is operational.
 - GitHub issue-to-PR workflow is established.
 The following diagram illustrates the relationship between agents and the iterative feedback loops that ensure code quality and strategy performance.
@@ -54,7 +52,6 @@ graph TD
 - [`docs/roles.md`](docs/roles.md) — agent role definitions and model assignments
 - [`docs/ticket-schema.md`](docs/ticket-schema.md) — planned GitHub Issues schema
 - [`docs/setup.md`](docs/setup.md) — how to set up a dev machine
-- `docs/prompts/pm_ideation.md` — prompt for strategy ideation & system context
 ## 👥 Agent Roles
 
 ## Next steps
