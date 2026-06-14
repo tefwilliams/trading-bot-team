@@ -11,7 +11,7 @@ A multi-agent team that researches, implements, and reviews trading strategies. 
 
 ## The Two-Tier System
 
-1. **Strategy Factory (The Agents):** This is the current LangGraph workflow. It produces vetted, backtested Python modules stored in `/strategies`.
+1. **Strategy Factory (The Agents):** This is the LangGraph workflow. It produces vetted, backtested Python modules stored in `/strategies`. The deterministic `Backtester` node handles isolated execution and the 3-retry error correction loop.
 2. **Execution Engine (The Combined Bot):** A master script that dynamically loads approved strategies from the `performance_manifest.csv`, handles portfolio-level risk, and executes trades via a unified API (e.g., Alpaca).
 
 ## Framework: LangGraph
@@ -36,10 +36,13 @@ Free, has a proper API (PyGithub), and gives a realistic ticket-board feel. Agen
 
 Alternative considered: local markdown/SQLite. Rejected for now — GitHub Issues gives a more "real" workplace feel and is accessible from any machine.
 
-## Models: Gemini Standard
+## Models: The "Flash Lite" Constraint
 
-- Consolidated to **Gemini 3.1 Flash Lite** for all roles to optimize for speed, context window, and cost-efficiency.
-- The `llm.py` wrapper handles role-specific configurations (e.g., lower temperature and strict system instructions for Reviewers).
+- **Constraint:** The system operates entirely on **Gemini 3.1 Flash Lite** due to free-tier API limitations.
+- **Architectural Compensation:** Because Flash Lite is a lightweight model, the architecture compensates for its lower reasoning depth via:
+  1. **Aggressive System Instructions:** The `llm.py` wrapper must enforce rigid, checklist-based personas (especially for the Reviewer).
+  2. **Linear Execution:** Avoiding infinite agent-to-agent chatter to preserve Requests Per Minute (RPM) limits.
+  3. **Deterministic Verification:** Heavy reliance on the Python execution environment (the Backtester) to catch flaws, capped strictly at 3 retries.
 
 ## Data and execution
 
