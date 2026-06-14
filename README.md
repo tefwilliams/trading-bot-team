@@ -18,6 +18,8 @@ The system uses GitHub as its state machine and user interface. Agents communica
 
 **Active Development.** Core orchestration loop is functional.
 - Researcher, Engineer, Reviewer, Risk Manager, and Product Manager agents are implemented.
+Active Development.** Core orchestration loop is functional.
+- Researcher, Engineer, Reviewer, and Risk Manager agents are implemented.
 - Automated Backtester node is operational.
 - GitHub issue-to-PR workflow is established.
 The following diagram illustrates the relationship between agents and the iterative feedback loops that ensure code quality and strategy performance.
