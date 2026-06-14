@@ -33,4 +33,10 @@
 
 ## Working with Claude Code or Gemini
 
-This project is intended to be picked up from any machine with Claude Code or a Gemini-equivalent CLI installed. The `docs/` folder is the source of truth for design context — point your assistant at it when resuming.
+This project is designed for "Agent-Centric Development." When using an AI tool (Gemini, Claude, Cursor) to modify this repo:
+
+1.  **Context Loading**: Point your assistant to the `docs/` folder first. 
+2.  **Verification Prompt**: Ask the AI: *"Review your proposed changes against the 'Developer Guardrails' in `docs/architecture.md`. Does this maintain the Self-Correction Loop contract?"*
+3.  **Strict Mode**: If the AI is generating an agent prompt (e.g., in `engineer.py`), ensure it includes a "Self-Reflection Mandate" in the prompt text to force the agent to double-check its own output.
+
+The `docs/` folder is the source of truth for design context — point your assistant at it when resuming.

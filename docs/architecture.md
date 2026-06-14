@@ -23,6 +23,18 @@ Chosen over alternatives because:
 
 LangGraph's state graphs and interrupt/checkpoint mechanics map cleanly onto "ticket moves through stages, human approves at gates."
 
+## 🛡️ Developer Guardrails for AI Coding Assistants
+
+When modifying or creating new agents, AI assistants MUST verify their implementation against these invariants:
+
+1.  **State Integrity**: All nodes must accept `AgentState` and return a dictionary that updates the state. Never bypass the `github_utils.py` manager for state transitions.
+2.  **The JSON Contract**: Every implementation of the `Engineer` prompt or the `backtester.py` logic must strictly enforce the use of `os.environ['BACKTEST_RESULTS_PATH']` and the specific keys: `total_return`, `max_drawdown`, `sharpe_ratio`, and `total_trades`.
+3.  **Self-Correction Loops**: Ensure the `Backtester` remains deterministic. If a test fails, the node must provide actionable, copy-pasteable feedback to the `Engineer`.
+4.  **Pandas Robustness**: `yfinance` data is often MultiIndex. Agents must be instructed to flatten columns immediately using `.get_level_values(0)`.
+5.  **Environment Isolation**: Agents should not assume a persistent local filesystem for data; they must use environment variables for paths.
+
+**AI Peer Review Task**: Before finalizing any code for an agent, perform a "System Check" to ensure the logic doesn't break the communication loop between the Engineer and the Backtester.
+
 ## Technical Interface Contract
 
 To ensure the Self-Correction Loop functions, all `Engineer` agents must adhere to the following interface:
