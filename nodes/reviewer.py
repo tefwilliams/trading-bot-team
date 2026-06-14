@@ -36,14 +36,15 @@ def reviewer_node(state: AgentState):
             [part["text"] for part in content if part["type"] == "text"]
         )
 
-    # Post the critique to the PR if it exists, otherwise the Issue
-    target_id = pr.number if pr else state["issue_number"]
+    is_researcher_fail = "[RESEARCHER]" in content.upper()
+
+    # Post the critique. If it's a failed strategy, ensure it's on the main issue for the Researcher.
+    # Otherwise, post to the PR if one exists.
+    target_id = state["issue_number"] if is_researcher_fail or not pr else pr.number
     github.post_comment(target_id, f"### 🧐 Reviewer Feedback\n\n{content}")
 
     # Determine routing based on the decision and the current content
     if "[APPROVED]" in content.upper():
-        # Check current label to determine if we are moving from Spec -> Implementation
-        # or from Backtest -> Risk/Manager
         labels = [l.name for l in issue.get_labels()]
         if "status:reviewer" in labels and pr:
             next_role = "risk_manager"
@@ -52,10 +53,12 @@ def reviewer_node(state: AgentState):
 
         github.set_status(state["issue_number"], next_role)
     else:
-        # Rejected: Kick back to whoever did the work
-        # We check the thread to see who to blame
-        is_code = "```python" in thread_context
-        next_role = "engineer" if is_code else "researcher"
+        # Determine if we blame the Engineer (bad code) or Researcher (bad strategy)
+        if is_researcher_fail:
+            next_role = "researcher"
+        else:
+            next_role = "engineer" if "```python" in thread_context else "researcher"
+
         github.set_status(state["issue_number"], next_role)
 
     return {
