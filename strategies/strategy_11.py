@@ -43,7 +43,7 @@ def run_backtest():
     # 2. Generate Signals and Indicators
     signals = generate_signals(df)
     
-    # Calculate indicators for the backtest loop
+    # Recalculate indicators for the backtest loop
     delta = df['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=2).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=2).mean()
@@ -68,6 +68,7 @@ def run_backtest():
         # Exit Logic
         if position == 1:
             days_held = (i - entry_date)
+            # RSI(2) > 70 OR 5-day hold OR 2x ATR stop
             rsi_exit = df['RSI2'].iloc[i] > 70
             atr_stop = df['Close'].iloc[i] <= (entry_price - (2 * entry_atr))
             time_stop = days_held >= 5
@@ -93,6 +94,7 @@ def run_backtest():
         running_max = cum_rets.cummax()
         drawdown = (cum_rets - running_max) / running_max
         max_drawdown = float(drawdown.min())
+        # Sharpe ratio annualization (sqrt 252)
         sharpe = float((returns.mean() / returns.std()) * np.sqrt(252)) if returns.std() != 0 else 0.0
     else:
         max_drawdown = 0.0
