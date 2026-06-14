@@ -53,6 +53,12 @@ def validate_interface(code: str) -> list[str]:
         if "run_backtest" not in calls:
             errors.append("The code defines `run_backtest` but never calls it.")
 
+        # Check for results saving attempt
+        if "BACKTEST_RESULTS_PATH" not in code:
+            errors.append(
+                "The code must use `os.environ['BACKTEST_RESULTS_PATH']` to save backtest metrics to a JSON file."
+            )
+
     except SyntaxError as e:
         errors.append(f"Syntax Error in generated code: {e}")
     except Exception as e:
@@ -179,26 +185,11 @@ def backtester_node(state: AgentState):
                     f"Failed to read backtest_results.json for issue #{issue_number}: {e}"
                 )
 
-        # Diagnostic check for zero-signal strategies
-        total_trades = metrics_data.get("total_trades", 0)
-        if total_trades == 0:
-            error_msg = "### ⚠️ Strategy Inactive\nThe backtest finished with **0 trades**. This usually means the entry criteria are too restrictive or the indicators are returning `NaN` due to a lack of warm-up data.\n\n"
-            error_msg += "**Action Required:** Please simplify the entry logic or increase the data lookback window."
-
-            github.post_comment(issue_number, error_msg)
-            github.set_status(issue_number, "engineer")
-            return {
-                "messages": [
-                    f"Backtester: Zero trades detected for issue #{issue_number}"
-                ]
-            }
-
-        else:
-            # If JSON is missing but returncode was 0, the script likely exited early or failed to write
-            error_msg = "### ❌ Backtest Logic Error\nThe script finished without producing `backtest_results.json`. This usually means a data download failed or a logic error caused an early `return`."
-            if result.stdout:
-                error_msg += f"\n\n**Console Output:**\n```\n{result.stdout}\n```"
-
+        # 1. Check if file was even created
+        if not metrics_data:
+            error_msg = "### ❌ Missing Backtest Results\n"
+            error_msg += "The script executed but did not write to `BACKTEST_RESULTS_PATH`. You MUST include this at the end of your `run_backtest`:\n\n"
+            error_msg += "```python\nimport json, os\nresults = {'total_return': float(ret), 'max_drawdown': float(dd), 'sharpe_ratio': float(sr), 'total_trades': int(len(trades))}\nwith open(os.environ['BACKTEST_RESULTS_PATH'], 'w') as f:\n    json.dump(results, f)\n```"
             github.post_comment(issue_number, error_msg)
             github.set_status(issue_number, "engineer")
             return {
@@ -207,6 +198,19 @@ def backtester_node(state: AgentState):
                 ]
             }
 
+        # 2. Check for zero-signal strategies
+        total_trades = metrics_data.get("total_trades", 0)
+        if total_trades == 0:
+            error_msg = "### ⚠️ Strategy Inactive\nThe backtest finished with **0 trades**.\n\n**Action Required:** Please simplify entry logic or check if indicators have enough warm-up data."
+            github.post_comment(issue_number, error_msg)
+            github.set_status(issue_number, "engineer")
+            return {
+                "messages": [
+                    f"Backtester: Zero trades detected for issue #{issue_number}"
+                ]
+            }
+
+        # 3. Success: Parse and report metrics
         display_metrics = {
             "Total Return": (
                 f"{metrics_data.get('total_return', 0) * 100:.2f}%"

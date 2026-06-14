@@ -35,6 +35,17 @@ def researcher_node(state: AgentState):
     - Position Sizing
     - Risks and Assumptions
 
+    TECHNICAL REQUIREMENTS FOR ENGINEER:
+    The implementation MUST include a `run_backtest()` function that saves results to a JSON file:
+    ```python
+    with open(os.environ['BACKTEST_RESULTS_PATH'], 'w') as f:
+        json.dump(metrics, f)
+    ```
+    ### TECHNICAL CONTRACT FOR IMPLEMENTATION:
+    You MUST include a "Technical Implementation Requirements" section in your proposal that explicitly reminds the Engineer to use the `BACKTEST_RESULTS_PATH` environment variable and provide the specific JSON metrics keys.
+
+    ### SELF-CORRECTION CHECK:
+    Review your proposal: Does it clearly define entry/exit rules? Are the indicators used available in `yfinance` daily data?
     IMPORTANT: If there is previous feedback, you MUST address the specific critiques and improve the strategy accordingly.
     """
 
