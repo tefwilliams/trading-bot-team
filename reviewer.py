@@ -59,11 +59,13 @@ def reviewer_node(state: AgentState):
 
     # Determine routing based on the decision and the current content
     if "[APPROVED]" in content.upper():
-        # If we approved a spec, it goes to Engineer. If we approved code, it goes to Backtest/Manager.
-        is_code = (
-            pr is not None or "```python" in thread_context or "```python" in content
-        )
-        next_role = "risk_manager" if is_code else "engineer"
+        # Check current label to determine if we are moving from Spec -> Implementation
+        # or from Backtest -> Risk/Manager
+        labels = [l.name for l in issue.get_labels()]
+        if "status:reviewer" in labels and pr:
+            next_role = "risk_manager"
+        else:
+            next_role = "engineer"
 
         github.set_status(state["issue_number"], next_role)
     else:
