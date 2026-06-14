@@ -34,7 +34,11 @@ Technical invariants for state management, the JSON Results Contract, and Pandas
 
 Free, has a proper API (PyGithub), and gives a realistic ticket-board feel. Agents create issues, comment on them, transition labels; the human reviews and approves in the GitHub web UI.
 
-Alternative considered: local markdown/SQLite. Rejected for now — GitHub Issues gives a more "real" workplace feel and is accessible from any machine.
+**The Hybrid State Model:**
+- **Coordination Layer (GitHub):** Acts as the primary UI and global state (status labels, comments). Rejected as a primary DB to keep the system accessible and "real-world."
+- **Persistence Layer (SQLite):** Uses `SqliteSaver` for internal LangGraph checkpointing. This ensures that internal agent thoughts (`messages`) and graph progress are not lost if the process restarts.
+
+**Constraint:** `thread_id == issue_number`.
 
 ## Models: The "Flash Lite" Constraint
 

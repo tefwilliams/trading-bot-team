@@ -1,6 +1,7 @@
 PyGithub
 python-dotenv
 langgraph
+langgraph-checkpoint-sqlite
 langchain-google-genai
 yfinance
 pandas
