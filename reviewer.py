@@ -1,4 +1,4 @@
-from llm import get_llm
+from llm import get_llm, load_prompt
 from github_utils import GitHubManager
 from state import AgentState
 
@@ -24,28 +24,10 @@ def reviewer_node(state: AgentState):
         diff, reviews = github.get_pr_context(pr.number)
         thread_context += f"\n\n--- PULL REQUEST DIFF (#{pr.number}) ---\n{diff}\n\n--- PR REVIEW COMMENTS ---\n{reviews}"
 
-    prompt = f"""
-    You are a Senior Quantitative Reviewer. Your goal is to ensure quality and rigor.
-    You are reviewing a task in a trading bot development pipeline.
-
-    ISSUE OVERVIEW:
-    Title: {issue.title}
-    Original Objective: {issue.body}
-
-    CONVERSATION HISTORY:
-    {thread_context}
-
-    YOUR TASK:
-    1. Determine if you are reviewing a "Strategy Specification" (from Researcher) or "Python Code" (from Engineer).
-    2. Critique the work for:
-       - Strategy: Logical flaws, look-ahead bias, unrealistic assumptions, or vague rules.
-       - Code/PR: Review the implementation (linked PR if available). Check for syntax errors, inefficient pandas usage, missing risk metrics (Sharpe, Drawdown), or divergence from the spec.
-    3. Provide a clear 'DECISION': [APPROVED] or [REJECTED].
-    4. Aim for progress. If a strategy is 90% there and the flaws are minor, provide suggestions but consider [APPROVED].
-
-    If REJECTED, specify exactly what needs to be fixed.
-    If APPROVED, provide a brief summary of why it's ready for the next stage.
-    """
+    template = load_prompt("reviewer.md")
+    prompt = template.format(
+        title=issue.title, body=issue.body, thread_context=thread_context
+    )
 
     response = llm.invoke(prompt)
     content = response.content

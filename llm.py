@@ -6,6 +6,16 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 load_dotenv()
 
 
+def load_prompt(filename: str) -> str:
+    """Loads a prompt template from the /prompts/ directory."""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(base_dir, "prompts", filename)
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+    return ""
+
+
 def get_llm(role: str, system_instruction: str = None):
     """
     Returns the appropriate LLM based on the agent role defined in docs/roles.md.
@@ -25,6 +35,11 @@ def get_llm(role: str, system_instruction: str = None):
         system_instruction = instructions.get(
             role.lower(), "You are a helpful assistant."
         )
+
+        # Try to load a specialized system instruction from file if it exists
+        file_instruction = load_prompt(f"system_{role.lower()}.txt")
+        if file_instruction:
+            system_instruction = file_instruction
 
     # Temperature settings based on role
     if role.lower() in ["researcher", "engineer", "product_manager"]:
