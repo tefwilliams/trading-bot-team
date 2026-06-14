@@ -42,7 +42,7 @@ def get_llm(role: str, system_instruction: str = None):
             system_instruction = file_instruction
 
     # Temperature settings based on role
-    if role.lower() in ["researcher", "engineer", "product_manager"]:
+    if role.lower() in ["researcher", "engineer"]:
         temp = 0.7
     else:
         temp = 0.0

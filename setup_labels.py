@@ -25,7 +25,6 @@ def setup_labels():
         "status:backtester": "D4C5F9",
         "status:historian": "006B75",
         "status:manager": "0E8A16",
-        "status:product_manager": "6B4FAD",
         # Types
         "type:strategy": "5319E7",
         "type:bug": "D93F0B",
