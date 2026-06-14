@@ -4,11 +4,11 @@ import numpy as np
 import json
 import os
 
-def generate_signals(data: pd.DataFrame) -> pd.Series:
+def generate_signals(data: pd.DataFrame) -> pd.DataFrame:
     """
     Generates trading signals for the ARMR strategy.
     Entry: SMA200 filter + RSI(2) < 10.
-    Returns a Series of signals (1: Long, 0: Flat).
+    Returns the dataframe with indicators and a 'signal' column.
     """
     df = data.copy()
     
@@ -22,13 +22,19 @@ def generate_signals(data: pd.DataFrame) -> pd.Series:
     # Calculate SMA200
     df['SMA200'] = df['Close'].rolling(window=200).mean()
     
-    # Signal generation: 1 for Long, 0 for Flat
-    signals = pd.Series(0, index=df.index)
-    # Entry Rule: Close > SMA200 AND RSI(2) < 10
-    mask = (df['Close'] > df['SMA200']) & (df['RSI2'] < 10)
-    signals.loc[mask] = 1
+    # Calculate ATR(14) for Stop Loss
+    high_low = df['High'] - df['Low']
+    high_close = np.abs(df['High'] - df['Close'].shift())
+    low_close = np.abs(df['Low'] - df['Close'].shift())
+    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+    df['ATR14'] = tr.rolling(window=14).mean()
     
-    return signals
+    # Entry Rule: Close > SMA200 AND RSI(2) < 10
+    df['signal'] = 0
+    mask = (df['Close'] > df['SMA200']) & (df['RSI2'] < 10)
+    df.loc[mask, 'signal'] = 1
+    
+    return df
 
 def run_backtest():
     # 1. Setup Data
@@ -41,47 +47,45 @@ def run_backtest():
     if df is None or df.empty:
         raise ValueError("Failed to download data.")
 
-    # 2. Generate Signals and Indicators
-    signals = generate_signals(df)
-    
-    # Recalculate indicators for the backtest loop
-    delta = df['Close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=2).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=2).mean()
-    rs = gain / loss
-    df['RSI2'] = 100 - (100 / (1 + rs))
-    
-    high_low = df['High'] - df['Low']
-    high_close = np.abs(df['High'] - df['Close'].shift())
-    low_close = np.abs(df['Low'] - df['Close'].shift())
-    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
-    df['ATR14'] = tr.rolling(window=14).mean()
+    # 2. Generate Indicators and Signals
+    df = generate_signals(df)
     
     # 3. Simulate Trades
-    position = 0
+    # Parameters
+    position_size = 0.20  # 20% equity per trade
+    capital = 1.0
+    
+    trades = []
+    in_position = False
     entry_price = 0.0
     entry_date = None
     entry_atr = 0.0
-    trades = []
+    
+    # Track time in market
+    days_in_market = 0
+    total_days = len(df) - 200
     
     # Loop from 200 to ensure SMA200 is warm
     for i in range(200, len(df)):
         # Exit Logic
-        if position == 1:
+        if in_position:
             days_held = (i - entry_date)
-            # RSI(2) > 70 OR 5-day hold OR 1.5x ATR stop (tightened from 2x for risk)
+            days_in_market += 1
+            
+            # Exit Conditions
             rsi_exit = df['RSI2'].iloc[i] > 70
             atr_stop = df['Close'].iloc[i] <= (entry_price - (1.5 * entry_atr))
             time_stop = days_held >= 5
             
             if rsi_exit or atr_stop or time_stop:
                 exit_price = df['Open'].iloc[i]
-                trades.append((exit_price / entry_price) - 1)
-                position = 0
+                trade_ret = (exit_price / entry_price) - 1
+                trades.append(trade_ret)
+                in_position = False
         
         # Entry Logic (1 day lag: signal at i-1 triggers entry at open of i)
-        elif signals.iloc[i-1] == 1 and position == 0:
-            position = 1
+        elif df['signal'].iloc[i-1] == 1 and not in_position:
+            in_position = True
             entry_price = df['Open'].iloc[i]
             entry_date = i
             entry_atr = df['ATR14'].iloc[i-1]
@@ -89,9 +93,7 @@ def run_backtest():
     # 4. Metrics Calculation
     returns = pd.Series(trades)
     
-    # Calculate Benchmark (Buy & Hold)
-    benchmark_ret = (df['Close'].iloc[-1] / df['Close'].iloc[200]) - 1
-    
+    # Performance metrics
     total_return = float((1 + returns).prod() - 1) if not returns.empty else 0.0
     
     if not returns.empty:
@@ -108,8 +110,7 @@ def run_backtest():
         "total_return": total_return,
         "max_drawdown": max_drawdown,
         "sharpe_ratio": sharpe,
-        "total_trades": int(len(trades)),
-        "benchmark_return": float(benchmark_ret)
+        "total_trades": int(len(trades))
     }
     
     # 5. Export
