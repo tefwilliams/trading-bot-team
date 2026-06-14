@@ -19,7 +19,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def create_graph():
 def create_graph(checkpointer):
     """Builds the LangGraph workflow orchestration."""
     workflow = StateGraph(AgentState)
@@ -53,15 +52,13 @@ def create_graph(checkpointer):
     workflow.add_edge("backtester", END)
     workflow.add_edge("historian", END)
 
-    return workflow.compile()
     return workflow.compile(checkpointer=checkpointer)
 
 
 def run_orchestrator():
     """Main execution loop that polls GitHub for work."""
     github = GitHubManager()
-    app = create_graph()
-    
+
     # Initialize SQLite connection for persistence
     conn = sqlite3.connect("checkpoints.sqlite", check_same_thread=False)
     checkpointer = SqliteSaver(conn)
@@ -90,16 +87,14 @@ def run_orchestrator():
 
                     initial_state = {
                         "issue_number": issue.number,
-                        "messages": [f"System: Starting node for {role}"],
                         "messages": [f"System: Resuming session for {role}"],
                         "current_role": role,
                     }
-                    
+
                     # config establishes the thread persistence link
                     config = {"configurable": {"thread_id": str(issue.number)}}
 
                     try:
-                        app.invoke(initial_state)
                         app.invoke(initial_state, config=config)
                         logger.info(f"Successfully processed issue #{issue.number}")
                         # Small breather for the API
