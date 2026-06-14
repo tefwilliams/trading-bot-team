@@ -27,3 +27,4 @@ Directs the team via GitHub Issues — generates high-level strategy objectives,
 
 - Deterministic LangGraph node that executes strategy code in a subprocess.
 - Forces non-interactive plotting (Agg backend) and reports performance metrics (Returns, MDD, Sharpe) back to the GitHub issue.
+- **Contract Enforcer**: Strictly validates that the Engineer's code adheres to the JSON results interface.

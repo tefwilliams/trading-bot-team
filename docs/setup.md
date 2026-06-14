@@ -33,10 +33,10 @@
 
 ## Working with Claude Code or Gemini
 
-This project is designed for "Agent-Centric Development." When using an AI tool (Gemini, Claude, Cursor) to modify this repo:
+This project uses "Agent-Centric Development." When using an AI tool (Gemini, Claude, Cursor) to modify this repository:
 
-1.  **Context Loading**: Point your assistant to the `docs/` folder first. 
-2.  **Verification Prompt**: Ask the AI: *"Review your proposed changes against the 'Developer Guardrails' in `docs/architecture.md`. Does this maintain the Self-Correction Loop contract?"*
+1. **Context Loading**: Ensure your AI assistant reads `DEVELOPER_GUIDE.md` and the `docs/` folder before suggesting changes.
+2. **Verification Prompt**: Explicitly ask the AI: *"Review your proposed changes against the invariants in `DEVELOPER_GUIDE.md`. Does this maintain the Technical Interface Contract?"*
 3.  **Strict Mode**: If the AI is generating an agent prompt (e.g., in `engineer.py`), ensure it includes a "Self-Reflection Mandate" in the prompt text to force the agent to double-check its own output.
 
-The `docs/` folder is the source of truth for design context — point your assistant at it when resuming.
+The `DEVELOPER_GUIDE.md` is the source of truth for technical interaction rules; the `docs/` folder provides the architectural and business context.

@@ -4,19 +4,14 @@ Status: design only. To be implemented as the next step after agent scaffolding.
 
 ## Labels
 
-### Role labels (who should act next)
-- `role:researcher`
-- `role:engineer`
-- `role:reviewer`
-- `role:manager` (awaiting human input)
-
-### Stage labels (where in the workflow)
-- `stage:proposal`
-- `stage:approved-spec`
-- `stage:implementation`
-- `stage:review`
-- `stage:backtest`
-- `stage:done`
+### Status Labels (Routing Logic)
+These labels control which LangGraph node processes the issue next:
+- `status:researcher`
+- `status:engineer`
+- `status:backtester`
+- `status:reviewer`
+- `status:risk_manager`
+- `status:historian`
 - `stage:rejected`
 
 ### Type labels
@@ -39,10 +34,10 @@ To be created in `.github/ISSUE_TEMPLATE/`. Fields:
 
 ## Workflow
 
-1. Manager opens an objective issue (`role:researcher`, `stage:proposal`).
-2. Researcher comments with a filled strategy proposal, sets `stage:review`, `role:reviewer`.
-3. Reviewer comments with critique; either `stage:approved-spec` or back to `stage:proposal`.
-4. Manager approves moving to implementation; `role:engineer`, `stage:implementation`.
-5. Engineer opens a PR, comments with link; `stage:review`, `role:reviewer`.
-6. Reviewer reviews PR; either approves to `stage:backtest` or kicks back.
-7. Backtester runs, posts results; `stage:done` or `stage:rejected`.
+1. Manager opens an objective issue (`status:researcher`).
+2. Researcher posts strategy proposal and moves to `status:reviewer`.
+3. Reviewer critiques the spec; if approved, it moves to `status:manager`.
+4. Manager approves implementation; changes status to `status:engineer`.
+5. Engineer implements code and opens a PR; moves to `status:backtester`.
+6. Backtester validates code and JSON contract; if successful, moves to `status:reviewer`.
+7. Reviewer performs qualitative check; if approved, moves to `status:risk_manager`.

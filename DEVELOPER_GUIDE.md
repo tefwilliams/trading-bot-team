@@ -20,7 +20,7 @@ AI assistants must only create or look for files within this established framewo
 
 | Directory/File | Responsibility | Rule / Invariant |
 | :--- | :--- | :--- |
-| `/nodes/` | LangGraph node execution logic | Every file must house pure async function nodes. |
+| `/nodes/` | LangGraph node execution logic | Every file must house pure function nodes. (Currently in root). |
 | `/tools/` | External agent actions & APIs | Must contain LangChain `@tool` definitions. |
 | `/prompts/` | System prompts & LLM instructions | Isolated from code strings; strictly plain text/markdown. |
 | `/docs/` | System design specifications | Kept high-level; details are offloaded here. |
@@ -30,7 +30,7 @@ AI assistants must only create or look for files within this established framewo
 
 ## 🏗️ LangGraph Invariants & State Philosophy
 
-1. **Pure Functional Node Pattern:** Every LangGraph node must be defined as an `async def`. It must accept `AgentState` as its primary argument and return a `dict` representing only the keys it intends to update or append.
+1. **Pure Functional Node Pattern:** Every LangGraph node must be defined as a function (e.g., `def engineer_node(state: AgentState)`). It must accept `AgentState` as its primary argument and return a `dict` representing only the keys it intends to update or append.
 2. **State Mutation Safety:** Nodes must never overwrite arrays or historical sequences in the state directly. Use appending mechanisms (e.g., `operator.add` for message trackers).
 3. **GitHub-First State Tracking:** Never update `AgentState["current_role"]` manually inside a running node execution. Instead, call `github.set_status(issue_number, "next_role")`. The orchestration loop in `main.py` will ingest this hook and update the graph router dynamically.
 

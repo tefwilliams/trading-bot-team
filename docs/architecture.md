@@ -23,29 +23,10 @@ Chosen over alternatives because:
 
 LangGraph's state graphs and interrupt/checkpoint mechanics map cleanly onto "ticket moves through stages, human approves at gates."
 
-## 🛡️ Developer Guardrails for AI Coding Assistants
+## 🛡️ Technical Guardrails
+Technical invariants for state management, the JSON Results Contract, and Pandas robustness are maintained in the root `DEVELOPER_GUIDE.md`. 
 
-When modifying or creating new agents, AI assistants MUST verify their implementation against these invariants:
-
-1.  **State Integrity**: All nodes must accept `AgentState` and return a dictionary that updates the state. Never bypass the `github_utils.py` manager for state transitions.
-2.  **The JSON Contract**: Every implementation of the `Engineer` prompt or the `backtester.py` logic must strictly enforce the use of `os.environ['BACKTEST_RESULTS_PATH']` and the specific keys: `total_return`, `max_drawdown`, `sharpe_ratio`, and `total_trades`.
-3.  **Self-Correction Loops**: Ensure the `Backtester` remains deterministic. If a test fails, the node must provide actionable, copy-pasteable feedback to the `Engineer`.
-4.  **Pandas Robustness**: `yfinance` data is often MultiIndex. Agents must be instructed to flatten columns immediately using `.get_level_values(0)`.
-5.  **Environment Isolation**: Agents should not assume a persistent local filesystem for data; they must use environment variables for paths.
-
-**AI Peer Review Task**: Before finalizing any code for an agent, perform a "System Check" to ensure the logic doesn't break the communication loop between the Engineer and the Backtester.
-
-## Technical Interface Contract
-
-To ensure the Self-Correction Loop functions, all `Engineer` agents must adhere to the following interface:
-
-1. **Inputs**: Use `yfinance` with `interval='1d'`. Flatten MultiIndex columns immediately.
-2. **Interface**: 
-    - `generate_signals(data)`: Returns a Series of -1, 0, 1.
-    - `run_backtest()`: Orchestrates the execution.
-3. **Outputs**: Metrics MUST be written to the path specified in `os.environ['BACKTEST_RESULTS_PATH']`.
-4. **JSON Schema**: 
-    - Keys: `total_return` (float), `max_drawdown` (float), `sharpe_ratio` (float), `total_trades` (int).
+**AI Assistants**: You MUST review `DEVELOPER_GUIDE.md` before modifying any agent nodes to ensure the Self-Correction Loop remains functional.
 
 **Robustness Policy**: Agents must perform a "Self-Review" against this contract before finalizing output.
 
@@ -55,11 +36,10 @@ Free, has a proper API (PyGithub), and gives a realistic ticket-board feel. Agen
 
 Alternative considered: local markdown/SQLite. Rejected for now — GitHub Issues gives a more "real" workplace feel and is accessible from any machine.
 
-## Models: Claude + Gemini
+## Models: Gemini Standard
 
-- Different models for producer vs. reviewer reduces shared blind spots.
-- Default assignment in `docs/roles.md`.
-- Single LLM wrapper (`agents/llm.py`, not yet written) hides provider differences behind one function.
+- Consolidated to **Gemini 3.1 Flash Lite** for all roles to optimize for speed, context window, and cost-efficiency.
+- The `llm.py` wrapper handles role-specific configurations (e.g., lower temperature and strict system instructions for Reviewers).
 
 ## Data and execution
 
