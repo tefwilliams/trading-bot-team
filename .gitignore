@@ -38,3 +38,4 @@ data/
 *.csv
 *.parquet
 backtest_results.json
+checkpoints.*
