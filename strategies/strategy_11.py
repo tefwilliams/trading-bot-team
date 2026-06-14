@@ -24,6 +24,7 @@ def generate_signals(data: pd.DataFrame) -> pd.Series:
     
     # Signal generation: 1 for Long, 0 for Flat
     signals = pd.Series(0, index=df.index)
+    # Entry Rule: Close > SMA200 AND RSI(2) < 10
     mask = (df['Close'] > df['SMA200']) & (df['RSI2'] < 10)
     signals.loc[mask] = 1
     
@@ -68,9 +69,9 @@ def run_backtest():
         # Exit Logic
         if position == 1:
             days_held = (i - entry_date)
-            # RSI(2) > 70 OR 5-day hold OR 2x ATR stop
+            # RSI(2) > 70 OR 5-day hold OR 1.5x ATR stop (tightened from 2x for risk)
             rsi_exit = df['RSI2'].iloc[i] > 70
-            atr_stop = df['Close'].iloc[i] <= (entry_price - (2 * entry_atr))
+            atr_stop = df['Close'].iloc[i] <= (entry_price - (1.5 * entry_atr))
             time_stop = days_held >= 5
             
             if rsi_exit or atr_stop or time_stop:
@@ -87,6 +88,10 @@ def run_backtest():
             
     # 4. Metrics Calculation
     returns = pd.Series(trades)
+    
+    # Calculate Benchmark (Buy & Hold)
+    benchmark_ret = (df['Close'].iloc[-1] / df['Close'].iloc[200]) - 1
+    
     total_return = float((1 + returns).prod() - 1) if not returns.empty else 0.0
     
     if not returns.empty:
@@ -94,7 +99,6 @@ def run_backtest():
         running_max = cum_rets.cummax()
         drawdown = (cum_rets - running_max) / running_max
         max_drawdown = float(drawdown.min())
-        # Sharpe ratio annualization (sqrt 252)
         sharpe = float((returns.mean() / returns.std()) * np.sqrt(252)) if returns.std() != 0 else 0.0
     else:
         max_drawdown = 0.0
@@ -104,7 +108,8 @@ def run_backtest():
         "total_return": total_return,
         "max_drawdown": max_drawdown,
         "sharpe_ratio": sharpe,
-        "total_trades": int(len(trades))
+        "total_trades": int(len(trades)),
+        "benchmark_return": float(benchmark_ret)
     }
     
     # 5. Export
