@@ -7,11 +7,8 @@ def risk_manager_node(state: AgentState):
     """
     Evaluates the strategy and code specifically for risk-management failures.
     """
-    # We use the 'reviewer' profile to get temperature=0 for consistency
-    llm = get_llm(
-        "risk_manager",
-        system_instruction="You are a Professional Risk Manager. Your job is NOT to see if the strategy makes money, but to see if it will lose money safely.",
-    )
+    # System instructions are now managed via prompts/risk_manager.md
+    llm = get_llm("risk_manager")
     github = GitHubManager()
     issue = github.get_issue(state["issue_number"])
 
