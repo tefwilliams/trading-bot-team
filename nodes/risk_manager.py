@@ -33,9 +33,9 @@ def risk_manager_node(state: AgentState):
             [part["text"] for part in content if part["type"] == "text"]
         )
 
-    github.post_comment(
-        state["issue_number"], f"### 🛡️ Risk Manager Assessment\n\n{content}"
-    )
+    # Post to the PR if available
+    target_id = pr.number if pr else state["issue_number"]
+    github.post_comment(target_id, f"### 🛡️ Risk Manager Assessment\n\n{content}")
 
     if "[SAFE]" in content.upper():
         # Approval: Performance was already validated, move to Historian for final logging

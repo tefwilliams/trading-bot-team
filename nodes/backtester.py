@@ -75,6 +75,8 @@ def backtester_node(state: AgentState):
     github = GitHubManager()
     issue_number = state["issue_number"]
 
+    pr = github.get_related_pr(issue_number)
+    target_id = pr.number if pr else issue_number
     results_path = os.path.join(os.getcwd(), f"backtest_results_{issue_number}.json")
     code = github.get_latest_code_block(issue_number)
 
@@ -97,12 +99,12 @@ def backtester_node(state: AgentState):
             error_msg += f"- {err}\n"
         error_msg += "\n**Note to Engineer:** Please ensure your code includes the required `generate_signals` and `run_backtest` functions."
 
-        github.post_comment(issue_number, error_msg)
+        github.post_comment(target_id, error_msg)
         github.set_status(issue_number, "engineer")
         return {"messages": ["Backtester failed interface validation"]}
 
     github.post_comment(
-        issue_number,
+        target_id,
         "### ⚙️ Running Automated Backtest...\nExtracted code and executing in a sub-process.",
     )
 
@@ -145,7 +147,7 @@ def backtester_node(state: AgentState):
             )
             error_report += f"**Standard Error:**\n```\n{result.stderr}\n```\n"
             error_report += f"**Standard Output:**\n```\n{result.stdout}\n```"
-            github.post_comment(issue_number, error_report)
+            github.post_comment(target_id, error_report)
             github.set_status(issue_number, "engineer")
             return {
                 "messages": [
@@ -164,7 +166,7 @@ def backtester_node(state: AgentState):
                 error_report += "**Specific Fix Required:** The request for 15m data failed because the range exceeds 60 days. You MUST switch to `interval='1d'` for this backtest window.\n\n"
 
             error_report += f"**Console Output:**\n```\n{result.stdout}\n```"
-            github.post_comment(issue_number, error_report)
+            github.post_comment(target_id, error_report)
             github.set_status(issue_number, "engineer")
             return {
                 "messages": [
@@ -190,7 +192,7 @@ def backtester_node(state: AgentState):
             error_msg = "### ❌ Missing Backtest Results\n"
             error_msg += "The script executed but did not write to `BACKTEST_RESULTS_PATH`. You MUST include this at the end of your `run_backtest`:\n\n"
             error_msg += "```python\nimport json, os\nresults = {'total_return': float(ret), 'max_drawdown': float(dd), 'sharpe_ratio': float(sr), 'total_trades': int(len(trades))}\nwith open(os.environ['BACKTEST_RESULTS_PATH'], 'w') as f:\n    json.dump(results, f)\n```"
-            github.post_comment(issue_number, error_msg)
+            github.post_comment(target_id, error_msg)
             github.set_status(issue_number, "engineer")
             return {
                 "messages": [
@@ -202,7 +204,7 @@ def backtester_node(state: AgentState):
         total_trades = metrics_data.get("total_trades", 0)
         if total_trades == 0:
             error_msg = "### ⚠️ Strategy Inactive\nThe backtest finished with **0 trades**.\n\n**Action Required:** Please simplify entry logic or check if indicators have enough warm-up data."
-            github.post_comment(issue_number, error_msg)
+            github.post_comment(target_id, error_msg)
             github.set_status(issue_number, "engineer")
             return {
                 "messages": [
@@ -243,14 +245,14 @@ def backtester_node(state: AgentState):
         if result.stderr:
             report += f"\n#### ⚠️ Standard Error/Warnings\n```\n{result.stderr}\n```"
 
-        github.post_comment(issue_number, report)
+        github.post_comment(target_id, report)
 
         # Self-Correction Success: Transition to Reviewer for qualitative analysis
         github.set_status(issue_number, "reviewer")
 
     except subprocess.TimeoutExpired:
         github.post_comment(
-            issue_number,
+            target_id,
             "### ❌ Backtest Timed Out\nThe strategy execution exceeded the 120s limit.",
         )
         github.set_status(issue_number, "engineer")

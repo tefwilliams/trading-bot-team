@@ -49,15 +49,17 @@ def engineer_node(state: AgentState):
 
     pr = github.create_pull_request(
         title=f"Strategy: {issue.title}",
-        body=f"This PR implements the strategy described in issue #{state['issue_number']}.\n\nCloses #{state['issue_number']}",
+        body=(
+            f"## Implementation Details\n{content}\n\n"
+            f"Closes #{state['issue_number']}"
+        ),
         head=branch_name,
     )
 
-    # Post the implementation as a structured comment
+    # Post a concise update to the issue
     comment_body = (
-        f"### 🤖 Engineer implementation generated\n\n"
-        f"I have implemented the code in branch `{branch_name}` and opened a Pull Request: {pr.html_url}\n\n"
-        f"**Implementation Details:**\n{content}\n"
+        f"### 🛠️ Implementation Started\n"
+        f"I have implemented the strategy in branch `{branch_name}` and opened a Pull Request for validation: {pr.html_url}"
     )
     github.post_comment(state["issue_number"], comment_body)
 

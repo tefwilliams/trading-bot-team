@@ -36,8 +36,9 @@ def reviewer_node(state: AgentState):
             [part["text"] for part in content if part["type"] == "text"]
         )
 
-    # Post the critique to GitHub
-    github.post_comment(state["issue_number"], f"### 🧐 Reviewer Feedback\n\n{content}")
+    # Post the critique to the PR if it exists, otherwise the Issue
+    target_id = pr.number if pr else state["issue_number"]
+    github.post_comment(target_id, f"### 🧐 Reviewer Feedback\n\n{content}")
 
     # Determine routing based on the decision and the current content
     if "[APPROVED]" in content.upper():
