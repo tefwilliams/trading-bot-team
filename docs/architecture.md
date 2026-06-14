@@ -23,6 +23,20 @@ Chosen over alternatives because:
 
 LangGraph's state graphs and interrupt/checkpoint mechanics map cleanly onto "ticket moves through stages, human approves at gates."
 
+## Technical Interface Contract
+
+To ensure the Self-Correction Loop functions, all `Engineer` agents must adhere to the following interface:
+
+1. **Inputs**: Use `yfinance` with `interval='1d'`. Flatten MultiIndex columns immediately.
+2. **Interface**: 
+    - `generate_signals(data)`: Returns a Series of -1, 0, 1.
+    - `run_backtest()`: Orchestrates the execution.
+3. **Outputs**: Metrics MUST be written to the path specified in `os.environ['BACKTEST_RESULTS_PATH']`.
+4. **JSON Schema**: 
+    - Keys: `total_return` (float), `max_drawdown` (float), `sharpe_ratio` (float), `total_trades` (int).
+
+**Robustness Policy**: Agents must perform a "Self-Review" against this contract before finalizing output.
+
 ## Coordination: GitHub Issues
 
 Free, has a proper API (PyGithub), and gives a realistic ticket-board feel. Agents create issues, comment on them, transition labels; the human reviews and approves in the GitHub web UI.

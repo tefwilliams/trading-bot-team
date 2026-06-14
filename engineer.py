@@ -59,6 +59,13 @@ def engineer_node(state: AgentState):
     IMPORTANT: If there is previous feedback or a rejected implementation in the history, you MUST address the specific critiques and fix the bugs identified.
     IMPORTANT: Your code will be automatically validated for structural integrity (AST) and executed in a sandbox. Ensure strict compliance with function signatures.
 
+    ### SELF-REFLECTION MANDATE:
+    Before providing the final code block, perform the following checks:
+    1. Does my `run_backtest` use `os.environ['BACKTEST_RESULTS_PATH']`?
+    2. Did I include the `if __name__ == "__main__":` block?
+    3. Did I flatten the yfinance MultiIndex columns?
+    4. Are the JSON keys exactly "total_return", "max_drawdown", "sharpe_ratio", and "total_trades"?
+
     Output ONLY the Python code inside a markdown block.
     """
 
