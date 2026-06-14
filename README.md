@@ -98,7 +98,7 @@ graph TD
    ```
 4. Initialize GitHub labels:
    ```bash
-   python setup_labels.py
+   python scripts/setup_labels.py
    ```
 5. Start the orchestrator:
    ```bash

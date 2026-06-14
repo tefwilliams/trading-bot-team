@@ -24,6 +24,7 @@ AI assistants must only create or look for files within this established framewo
 | `/tools/` | External agent actions & APIs | Must contain LangChain `@tool` definitions. |
 | `/prompts/` | System prompts & LLM instructions | Isolated from code strings; strictly plain text/markdown. |
 | `/docs/` | System design specifications | Kept high-level; details are offloaded here. |
+| `/scripts/` | Utility & Setup scripts | Non-orchestration helper scripts. |
 | `state.py` | Graph state schema definitions | Houses the central `AgentState` configuration. |
 | `checkpoints.sqlite` | Persistence Layer | Local SQLite database for LangGraph thread persistence. |
 
