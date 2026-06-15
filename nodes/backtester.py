@@ -243,7 +243,18 @@ def backtester_node(state: AgentState):
                 if "sharpe_ratio" in metrics_data
                 else "N/A"
             ),
+            "Benchmark (Buy & Hold)": (
+                f"{metrics_data.get('benchmark_return', 0) * 100:.2f}%"
+                if "benchmark_return" in metrics_data
+                else "N/A"
+            ),
         }
+
+        # Highlight whether the strategy actually beat doing nothing — the key
+        # signal the Reviewer uses to judge edge.
+        if "total_return" in metrics_data and "benchmark_return" in metrics_data:
+            excess = metrics_data["total_return"] - metrics_data["benchmark_return"]
+            display_metrics["Excess vs Benchmark"] = f"{excess * 100:+.2f}%"
 
         report = "### 📊 Backtest Execution Report\n\n"
         report += "| Metric | Value |\n| :--- | :--- |\n"
@@ -261,9 +272,9 @@ def backtester_node(state: AgentState):
 
         github.post_comment(target_id, report)
 
-        # Self-Correction Success: Transition to Reviewer for qualitative analysis.
+        # Self-Correction Success: Transition to the Code Reviewer for implementation review.
         # Reset the retry counter so the next correction loop (if any) starts fresh.
-        github.set_status(issue_number, "reviewer")
+        github.set_status(issue_number, "code_reviewer")
         return {
             "messages": [f"Backtester executed code for issue #{issue_number}"],
             "backtest_metrics": metrics_data,

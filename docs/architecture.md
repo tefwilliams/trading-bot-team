@@ -16,9 +16,9 @@ A multi-agent team that researches, implements, and reviews trading strategies. 
 
 ## Current pipeline scope
 
-The active pipeline is: **Researcher → Reviewer (spec) → Engineer → Backtester → Reviewer (code) → human merge**, with the Backtester ⇄ Engineer self-correction loop in the middle.
+The active pipeline is: **Researcher → Strategy Reviewer (spec) → Engineer → Backtester → Code Reviewer → Performance Reviewer (edge) → human merge**, with the Backtester ⇄ Engineer self-correction loop in the middle.
 
-The **Risk Manager** and **Historian** roles existed in earlier iterations and are intentionally out of scope for now: risk review has been folded into the Reviewer, and performance-manifest archiving is deferred. The only human gate is the final PR merge.
+Review is split by concern across three reviewers: the **Strategy Reviewer** (`gemini-2.5-pro`) owns spec soundness, the **Code Reviewer** (`gemini-3.1-flash-lite`) owns implementation correctness, and the **Performance Reviewer** (`gemini-3-flash`) owns edge vs benchmark. The **Risk Manager** and **Historian** roles existed in earlier iterations and are intentionally out of scope for now: risk review has been folded into the Strategy Reviewer, and performance-manifest archiving is deferred. The only human gate is the final PR merge.
 
 ## Framework: LangGraph
 
@@ -48,13 +48,16 @@ Free, has a proper API (PyGithub), and gives a realistic ticket-board feel. Agen
 
 ## Models: The Free-Tier Constraint
 
-- **Constraint:** The system operates entirely on Google AI Studio **free-tier** models. The 3.x
-  Pro models are paid-only (since April 2026); `gemini-2.5-pro` is still free but heavily
-  rate-limited (~5 RPM, 50-100 RPD), and `gemini-3-flash` is the strongest high-quota free model.
-- **Per-role tiering (see `llm.py`):** Researcher → `gemini-3.1-flash-lite` (cheap, high quota);
-  Engineer → `gemini-3-flash` (code generation); Reviewer → `gemini-2.5-pro` (most capable free
-  reasoning, for the sole quality gate) with an automatic fallback to `gemini-3-flash` when Pro
-  errors or throttles. Mixing models also spreads usage across separate rate-limit quotas.
+- **Constraint:** The system operates entirely on Google AI Studio **free-tier** models. `gemini-3-flash`
+  is the strongest high-quota free model. `gemini-2.5-pro` is the most capable free model but is heavily
+  rate-limited (~5 RPM, 50-100 RPD), so it is used for exactly one role. (The 3.x Pro models are
+  paid-only since April 2026.)
+- **Per-role tiering (see `llm.py`):** Pro is reserved for the single hardest reasoning task. The
+  **Strategy Reviewer** (spec soundness) → `gemini-2.5-pro` (fallback `gemini-3-flash`); it fires once
+  per research iteration, so the rate limit is comfortable. Researcher, Engineer, and the
+  **Performance Reviewer** (edge vs benchmark — largely numeric) → `gemini-3-flash`; the **Code
+  Reviewer** (mechanical checks) → `gemini-3.1-flash-lite`. The cheap Code Reviewer absorbs the
+  Engineer bug-fix churn loop.
 - **Architectural Compensation:** Because these are still lightweight models, the architecture compensates for their lower reasoning depth via:
   1. **Aggressive System Instructions:** The `llm.py` wrapper must enforce rigid, checklist-based personas (especially for the Reviewer).
   2. **Linear Execution:** Avoiding infinite agent-to-agent chatter to preserve Requests Per Minute (RPM) limits.

@@ -7,7 +7,9 @@ from github_utils import GitHubManager
 from state import AgentState
 from nodes.researcher import researcher_node
 from nodes.engineer import engineer_node
-from nodes.reviewer import reviewer_node
+from nodes.strategy_reviewer import strategy_reviewer_node
+from nodes.code_reviewer import code_reviewer_node
+from nodes.performance_reviewer import performance_reviewer_node
 from nodes.backtester import backtester_node
 
 # Configure logging for professional visibility into agent actions
@@ -24,7 +26,9 @@ def create_graph(checkpointer):
     # Add the nodes currently defined in the system
     workflow.add_node("researcher", researcher_node)
     workflow.add_node("engineer", engineer_node)
-    workflow.add_node("reviewer", reviewer_node)
+    workflow.add_node("strategy_reviewer", strategy_reviewer_node)
+    workflow.add_node("code_reviewer", code_reviewer_node)
+    workflow.add_node("performance_reviewer", performance_reviewer_node)
     workflow.add_node("backtester", backtester_node)
 
     # Route to the correct node based on the current role in state
@@ -34,14 +38,18 @@ def create_graph(checkpointer):
         {
             "researcher": "researcher",
             "engineer": "engineer",
-            "reviewer": "reviewer",
+            "strategy_reviewer": "strategy_reviewer",
+            "code_reviewer": "code_reviewer",
+            "performance_reviewer": "performance_reviewer",
             "backtester": "backtester",
         },
     )
 
     workflow.add_edge("researcher", END)
     workflow.add_edge("engineer", END)
-    workflow.add_edge("reviewer", END)
+    workflow.add_edge("strategy_reviewer", END)
+    workflow.add_edge("code_reviewer", END)
+    workflow.add_edge("performance_reviewer", END)
     workflow.add_edge("backtester", END)
 
     return workflow.compile(checkpointer=checkpointer)
@@ -66,7 +74,9 @@ def run_orchestrator():
                 "backtester",
                 "researcher",
                 "engineer",
-                "reviewer",
+                "code_reviewer",
+                "performance_reviewer",
+                "strategy_reviewer",
             ]
 
             for role in roles:
