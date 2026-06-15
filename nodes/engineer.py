@@ -1,22 +1,39 @@
+import logging
+
+from pydantic import BaseModel, Field
+
 from llm import get_llm, load_prompt
 from github_utils import GitHubManager
 from state import AgentState
 
+logger = logging.getLogger(__name__)
+
+
+class EngineerOutput(BaseModel):
+    """Structured engineer output so each channel gets the right granularity."""
+
+    pr_description: str = Field(
+        description="The current state of the implementation, as the PR description (Markdown)."
+    )
+    change_summary: str = Field(
+        description="What changed in THIS iteration (Markdown), posted as a PR comment."
+    )
+    code: str = Field(description="The complete Python strategy module. No markdown fences.")
+
 
 def engineer_node(state: AgentState):
     """
-    Translates an approved trading strategy into runnable Python code.
+    Translates an approved strategy into runnable Python. Communicates on the PR (the
+    implementation channel): it keeps the PR description current and posts a change summary
+    each iteration. It does NOT post to the issue — the issue stays at the strategy level,
+    and the Code Reviewer posts the high-level "implemented" note there on approval.
     """
-    llm = get_llm("engineer")
     github = GitHubManager()
-
     issue = github.get_issue(state["issue_number"])
 
-    # Fetch conversation history so the engineer can see the strategy proposal and feedback
-    comments = list(issue.get_comments())
-    thread_context = "\n\n".join(
-        [f"--- Comment from {c.user.login} ---\n{c.body}" for c in comments]
-    )
+    # Full context: the spec (issue) plus any backtest/code-review feedback (PR) that
+    # routed it back here.
+    thread_context, _pr = github.get_full_context(issue)
 
     template = load_prompt("engineer.md")
     prompt = template.format(
@@ -26,16 +43,15 @@ def engineer_node(state: AgentState):
         issue_number=state["issue_number"],
     )
 
-    # The thinking model will generate the reasoning logic before the final code block
-    response = llm.invoke(prompt)
-    content = response.content
-    if isinstance(content, list):
-        content = "\n".join(
-            [part["text"] for part in content if part["type"] == "text"]
-        )
+    llm = get_llm("engineer", structured_output=EngineerOutput)
+    try:
+        result: EngineerOutput = llm.invoke(prompt)
+    except Exception as e:
+        # Transient model/parse error: leave the issue at status:engineer so the
+        # orchestrator retries on the next poll.
+        logger.error(f"Engineer failed for #{state['issue_number']}: {e}")
+        return {"messages": [f"Engineer errored on issue #{state['issue_number']}"]}
 
-    # Extract code and create a Pull Request
-    clean_code = github.extract_code(content)
     branch_name = f"strat/issue-{state['issue_number']}"
     github.ensure_branch(branch_name)
 
@@ -43,31 +59,25 @@ def engineer_node(state: AgentState):
     github.create_or_update_file(
         file_path,
         f"Implement strategy for issue #{state['issue_number']}",
-        clean_code,
+        result.code,
         branch_name,
     )
 
+    # create_pull_request returns the existing OPEN PR if one exists, else creates a new
+    # one. Because the Performance Reviewer closes the PR when a strategy is abandoned, a
+    # new spec naturally gets a fresh PR here.
+    pr_body = f"{result.pr_description}\n\nCloses #{state['issue_number']}"
     pr = github.create_pull_request(
-        title=f"Strategy: {issue.title}",
-        body=(
-            f"## Implementation Details\n{content}\n\n"
-            f"Closes #{state['issue_number']}"
-        ),
-        head=branch_name,
+        title=f"Strategy: {issue.title}", body=pr_body, head=branch_name
     )
+    # Keep the description current even when reusing an existing PR.
+    github.update_pr_body(pr.number, pr_body)
+    github.post_comment(pr.number, f"### 🛠️ Change Summary\n{result.change_summary}")
 
-    # Post a concise update to the issue
-    comment_body = (
-        f"### 🛠️ Implementation Started\n"
-        f"I have implemented the strategy in branch `{branch_name}` and opened a Pull Request for validation: {pr.html_url}"
-    )
-    github.post_comment(state["issue_number"], comment_body)
-
-    # Transition to the backtester status
     github.set_status(state["issue_number"], "backtester")
 
     return {
         "messages": [
-            f"Engineer generated implementation for issue #{state['issue_number']}"
+            f"Engineer implemented issue #{state['issue_number']} on PR #{pr.number}"
         ]
     }

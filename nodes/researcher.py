@@ -9,11 +9,9 @@ def researcher_node(state: AgentState):
 
     issue = github.get_issue(state["issue_number"])
 
-    # Fetch conversation history so the researcher can see previous feedback
-    comments = list(issue.get_comments())
-    thread_context = "\n\n".join(
-        [f"--- Feedback from {c.user.login} ---\n{c.body}" for c in comments]
-    )
+    # The researcher works at the strategy level — it reads only the issue thread.
+    # Implementation-side outcomes reach it as the Performance Reviewer's distilled summary.
+    thread_context = github.get_issue_context(issue)
 
     template = load_prompt("researcher.md")
     prompt = template.format(

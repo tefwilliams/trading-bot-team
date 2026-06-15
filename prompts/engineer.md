@@ -74,4 +74,8 @@ Before providing the final code block, perform the following checks:
 4. Are the JSON keys exactly "total_return", "max_drawdown", "sharpe_ratio", "total_trades", and "benchmark_return"?
 5. Did I lag signals with `.shift(1)` before computing returns (no look-ahead bias)?
 
-Output ONLY the Python code inside a markdown block.
+### OUTPUT (structured)
+Return the three fields:
+- `code`: the complete Python module, raw (no markdown fences).
+- `pr_description`: a concise description of the CURRENT implementation, for the PR description (Markdown) — what the strategy does and how it's structured.
+- `change_summary`: what changed in THIS iteration (Markdown). On the first implementation, summarise what you built; on a fix, state precisely what you changed and which feedback it addresses.

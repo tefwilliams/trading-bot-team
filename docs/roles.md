@@ -41,7 +41,10 @@ models with rigid checklist prompts and deterministic verification.
 - **Responsibilities:** Translate an approved strategy spec into runnable Python — signal
   generation, position sizing, backtest harness. Must adhere strictly to the JSON results contract
   and the `yfinance` requirements in `DEVELOPER_GUIDE.md`. Uses `pandas` / `pandas_ta` (never `talib`).
-- **Output:** Code committed to `strat/issue-X`, a PR, and a comment linking it; moves to `status:backtester`.
+- **Output:** Structured `EngineerOutput` (`pr_description`, `change_summary`, `code`). Commits code to
+  `strat/issue-X`, opens a **fresh PR per spec** (reusing the open one while iterating on the same
+  spec), keeps the PR description current, and posts a change-summary comment **on the PR** each run.
+  It does not post to the issue. Moves to `status:backtester`.
 
 ## Code Reviewer
 
@@ -50,14 +53,18 @@ models with rigid checklist prompts and deterministic verification.
   correctness, and pandas hygiene. It does NOT judge whether the strategy is a good idea (that's the
   Strategy Reviewer). On the cheap model, it absorbs the Engineer bug-fix churn loop.
 - **Routing:** rejections always go back to the **Engineer**; approval → Performance Reviewer.
-- **Output:** A structured verdict (`decision`, `review_markdown`) via structured-output mode.
+- **Output:** Structured `CodeReviewDecision` (`decision`, `review_markdown`, `high_level_summary`).
+  Posts the review **on the PR**; **on approval** also posts `high_level_summary` to the **issue** —
+  the one spec-level "implemented" note (so the issue gains an entry only once per implemented spec).
 
 ## Performance Reviewer
 
 - **Responsibilities:** Judges **edge** — does the backtested strategy beat its buy-and-hold
   `benchmark_return` with a positive risk-adjusted return? A clean backtest with no edge is rejected.
-  The judgment is largely numeric, so it runs on the cheaper `gemini-3-flash`.
-- **Routing:** approval → `status:done` (human merges); rejection → Researcher (hypothesis has no edge).
+  The judgment is largely numeric, so it runs on the cheaper `gemini-3-flash`. Reads the **PR only**
+  (metrics + code) and distils its verdict to the issue.
+- **Routing:** approval → posts the verdict on the PR, `status:done` (human merges); rejection →
+  notes it on the PR and **closes the PR**, posts a summary to the issue, `status:researcher`.
 - **Output:** A structured verdict (`decision`, `review_markdown`) via structured-output mode.
 - **Edge-test caveats:** the benchmark is naive buy-and-hold of the *primary instrument* (not a broad
   index); transaction costs and slippage are not modelled (so high-churn edge is overstated); and raw

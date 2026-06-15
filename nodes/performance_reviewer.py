@@ -3,7 +3,7 @@ import logging
 from llm import get_llm, load_prompt
 from github_utils import GitHubManager
 from state import AgentState
-from nodes.review_common import ReviewDecision, build_review_context, apply_rejection
+from nodes.review_common import ReviewDecision, apply_rejection
 
 logger = logging.getLogger(__name__)
 
@@ -17,13 +17,15 @@ def performance_reviewer_node(state: AgentState):
     """
     github = GitHubManager()
     issue = github.get_issue(state["issue_number"])
-    thread_context, pr = build_review_context(github, issue)
 
+    # Reads the PR only (the backtest metrics + code); it distils its verdict back to the issue.
+    pr = github.get_related_pr(state["issue_number"])
     if not pr:
         # Should not happen (reached only after the engineer/backtester/code-reviewer run).
         logger.warning(f"Performance reviewer found no PR for #{state['issue_number']}; routing to engineer")
         github.set_status(state["issue_number"], "engineer")
         return {"messages": [f"Performance reviewer: no PR for #{state['issue_number']}"]}
+    thread_context = github.get_pr_context(pr.number)
 
     template = load_prompt("performance_reviewer.md")
     prompt = template.format(
@@ -43,22 +45,32 @@ def performance_reviewer_node(state: AgentState):
         github.set_status(state["issue_number"], "researcher")
         return {"messages": [f"Performance reviewer errored on issue #{state['issue_number']}"]}
 
-    # Post to the issue so the Researcher sees the edge critique on rejection.
-    github.post_comment(
-        state["issue_number"], f"### 📊 Performance Review\n\n{verdict.review_markdown}"
-    )
-
     if verdict.decision == "approved":
+        # Edge confirmed -> the PR is ready for the human to merge, so post the verdict there.
+        github.post_comment(pr.number, f"### 📊 Performance Review\n\n{verdict.review_markdown}")
         github.set_status(state["issue_number"], "done")
         return {
             "messages": [f"Performance reviewer APPROVED #{state['issue_number']}; -> done"]
         }
 
-    # Rejected -> back to the Researcher (cumulative cap may escalate to status:blocked).
+    # Rejected: this implementation is a dead end. Note it on the PR and close it, then
+    # distil the verdict to the issue for the Researcher (who works at the strategy level
+    # and won't read the PR). A fresh spec then gets a fresh PR from the Engineer.
+    github.post_comment(
+        pr.number,
+        "### 📊 Performance Review: No Edge\nClosing this PR — the strategy does not "
+        "demonstrate an edge. See the issue for the summary and next steps.",
+    )
+    github.close_pr(pr.number)
+    github.post_comment(
+        state["issue_number"], f"### 📊 Performance Review\n\n{verdict.review_markdown}"
+    )
+
+    # Route back to the Researcher (cumulative cap may escalate to status:blocked).
     new_rejections = apply_rejection(github, state, state["issue_number"], "researcher")
     return {
         "messages": [
-            f"Performance reviewer REJECTED #{state['issue_number']}; rejection #{new_rejections}"
+            f"Performance reviewer REJECTED #{state['issue_number']} (PR closed); rejection #{new_rejections}"
         ],
         "review_rejections": new_rejections,
     }

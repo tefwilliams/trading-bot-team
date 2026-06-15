@@ -103,21 +103,55 @@ class GitHubManager:
         )
         return pulls[0] if pulls.totalCount > 0 else None
 
-    def get_pr_context(self, pr_number: int):
-        """Gathers diff and review comments from a PR."""
-        pr = self.repo.get_pull(pr_number)
-        files = pr.get_files()
-        diff = ""
-        for f in files:
-            diff += f"File: {f.filename}\n{f.patch}\n"
+    def update_pr_body(self, pr_number: int, body: str):
+        """Replaces a PR's description (used by the Engineer to keep it current)."""
+        self.repo.get_pull(pr_number).edit(body=body)
 
-        # PR Review comments are specifically on lines of code
-        reviews = pr.get_review_comments()
-        review_text = "\n".join(
-            [f"{r.user.login} (on {r.path}): {r.body}" for r in reviews]
+    def close_pr(self, pr_number: int):
+        """Closes a PR without merging (used when a strategy is abandoned)."""
+        self.repo.get_pull(pr_number).edit(state="closed")
+
+    def get_issue_context(self, issue):
+        """The issue thread only — the strategy-level channel (spec & reviews).
+        Used by the Researcher and Strategy Reviewer, who work at the strategy level."""
+        comments = list(issue.get_comments())
+        thread = "\n\n".join(f"--- {c.user.login} ---\n{c.body}" for c in comments)
+        return f"=== ISSUE #{issue.number} THREAD (strategy spec & reviews) ===\n{thread}"
+
+    def get_pr_context(self, pr_number: int):
+        """The PR — the implementation-level channel: description, diff, conversation
+        comments (backtest reports & code review) and any inline review comments.
+        Used by the Performance Reviewer (PR-only)."""
+        pr = self.repo.get_pull(pr_number)
+
+        diff = "".join(f"File: {f.filename}\n{f.patch}\n" for f in pr.get_files())
+
+        conversation = "\n\n".join(
+            f"--- {c.user.login} ---\n{c.body}" for c in self.get_issue(pr_number).get_comments()
         )
 
-        return diff, review_text
+        inline = "\n".join(
+            f"{r.user.login} (on {r.path}): {r.body}" for r in pr.get_review_comments()
+        )
+
+        parts = [
+            f"=== PR #{pr_number} DESCRIPTION ===\n{pr.body or ''}",
+            f"=== PR #{pr_number} CONVERSATION (backtest reports & code review) ===\n{conversation}",
+            f"=== PR #{pr_number} DIFF ===\n{diff}",
+        ]
+        if inline.strip():
+            parts.append(f"=== PR #{pr_number} INLINE REVIEW COMMENTS ===\n{inline}")
+        return "\n\n".join(parts)
+
+    def get_full_context(self, issue):
+        """Both channels — issue thread + PR (if one exists). Returns (text, pr) with
+        pr None pre-implementation. Used by the Engineer and Code Reviewer, who must see
+        the spec AND the implementation-side feedback."""
+        parts = [self.get_issue_context(issue)]
+        pr = self.get_related_pr(issue.number)
+        if pr:
+            parts.append(self.get_pr_context(pr.number))
+        return "\n\n".join(parts), pr
 
     def get_latest_code_block(self, issue_number: int):
         """Extracts the Python code from the PR branch if it exists, else from comments."""
