@@ -9,10 +9,11 @@ is secondary. The agents do the work; a human reviews and merges.
 
 - **Framework:** [LangGraph](https://langchain-ai.github.io/langgraph/) — stateful agent
   workflow. Here it acts as a thin router: each issue's `status:` label decides which node runs.
-- **Models:** Google AI Studio free tier, tiered by role (see `llm.py`) — Researcher on
-  `gemini-3.1-flash-lite`, Engineer on `gemini-3-flash`, and the Reviewer (sole quality gate) on
-  `gemini-2.5-pro` with an automatic fallback to `gemini-3-flash`. The architecture compensates for
-  light models with rigid checklist prompts and deterministic verification (the Backtester).
+- **Models:** Google AI Studio free tier, tiered by role (see `llm.py`). Reasoning effort goes to the
+  strategy side: Researcher & Engineer on `gemini-3-flash`, the **Strategy Reviewer** (spec soundness
+  + edge) on `gemini-2.5-pro` (with a fallback to `gemini-3-flash`), and the **Code Reviewer**
+  (mechanical implementation checks) on the cheap `gemini-3.1-flash-lite`. The architecture
+  compensates for light models with rigid checklist prompts and deterministic verification (the Backtester).
 - **Coordination layer:** GitHub Issues as the ticket board and primary state. Agents read/write
   comments, flip `status:` labels, and open Pull Requests. The human merges.
 - **Persistence:** SQLite (`SqliteSaver`) checkpoints LangGraph thread state so internal agent
@@ -23,10 +24,10 @@ is secondary. The agents do the work; a human reviews and merges.
 ```mermaid
 graph TD
     Start(("New Strategy Issue<br/>status:researcher")) --> Researcher
-    Researcher -- "Proposes spec" --> Reviewer_Spec{"Reviewer<br/>(spec check)"}
+    Researcher -- "Proposes spec" --> StratReview{"Strategy Reviewer<br/>(spec soundness · Pro)"}
 
-    Reviewer_Spec -- "rejected (researcher)" --> Researcher
-    Reviewer_Spec -- "approved" --> Engineer
+    StratReview -- "rejected" --> Researcher
+    StratReview -- "approved" --> Engineer
 
     Engineer -- "Opens PR" --> Backtester
 
@@ -35,11 +36,16 @@ graph TD
     end
 
     Backtester -- "3 failures" --> Blocked(("status:blocked<br/>Human investigates"))
-    Backtester -- "Pass (has results)" --> Reviewer_Code{"Reviewer<br/>(code check)"}
+    Backtester -- "Pass (has results)" --> CodeReview{"Code Reviewer<br/>(implementation · Flash-Lite)"}
 
-    Reviewer_Code -- "rejected (engineer)" --> Engineer
-    Reviewer_Code -- "3 rejections" --> Blocked
-    Reviewer_Code -- "approved" --> Done(("status:done<br/>Human merges PR"))
+    CodeReview -- "rejected" --> Engineer
+    CodeReview -- "approved" --> EdgeReview{"Strategy Reviewer<br/>(edge vs benchmark · Pro)"}
+
+    EdgeReview -- "rejected (no edge)" --> Researcher
+    EdgeReview -- "approved" --> Done(("status:done<br/>Human merges PR"))
+
+    CodeReview -. "5 total rejections" .-> Blocked
+    EdgeReview -. "5 total rejections" .-> Blocked
 ```
 
 ## Agent roles
@@ -47,9 +53,10 @@ graph TD
 | Agent | Type | Responsibility |
 | :--- | :--- | :--- |
 | **Researcher** | LLM | Turns a manager objective into an explicit strategy spec (hypothesis, entry/exit, sizing). |
+| **Strategy Reviewer** | LLM (Pro) | Owns strategy quality: reviews spec soundness (look-ahead, overfitting, risk controls) and, post-backtest, whether the strategy beats its benchmark. Rejections → Researcher. |
 | **Engineer** | LLM | Translates the approved spec into runnable Python (`pandas` / `pandas_ta` / `yfinance`), commits to a branch, opens a PR. |
 | **Backtester** | Deterministic | Statically validates the interface, runs the code in a sandboxed subprocess, parses metrics, and enforces the 3-retry self-correction cap. |
-| **Reviewer** | LLM | The single AI quality gate. Checklist-driven review of both the spec and the code, covering correctness, look-ahead bias, **and risk** (position sizing, stop-loss, slippage, overfitting). |
+| **Code Reviewer** | LLM (Flash-Lite) | Owns implementation quality: contract compliance, look-ahead bias in code, faithfulness to spec, correctness. Rejections → Engineer. Shields the Pro reviewer from bug-fix churn. |
 | **Manager** | Human (you) | Sets objectives by opening issues, and performs the final review by merging (or rejecting) the PR. |
 
 The flow has **no intermediate human gates** — agents run end-to-end until the code is either

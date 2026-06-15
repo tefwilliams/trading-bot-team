@@ -19,9 +19,10 @@ def setup_labels():
     labels = {
         # Statuses mapping to LangGraph nodes (processed by the orchestrator)
         "status:researcher": "FBCA04",
+        "status:strategy_reviewer": "C5DEF5",
         "status:engineer": "1D76DB",
         "status:backtester": "D4C5F9",
-        "status:reviewer": "C5DEF5",
+        "status:code_reviewer": "BFD4F2",
         # Terminal, human-owned statuses (no node processes these)
         "status:done": "0E8A16",  # Code approved — waiting for the human to merge
         "status:blocked": "E11D21",  # Self-correction cap hit — needs a human

@@ -36,8 +36,8 @@ AI assistants must only create or look for files within this established framewo
 3. **GitHub-First State Tracking:** Never update `AgentState["current_role"]` manually inside a running node execution. Instead, call `github.set_status(issue_number, "next_role")`. The orchestration loop in `main.py` will ingest this hook and update the graph router dynamically.
 4. **Thread Persistence:** All graph executions must use a `SqliteSaver` checkpointer. The `thread_id` passed to the graph's `config` must always match the `issue_number` to ensure continuity.
 5. **Self-Correction Retry Cap:** `AgentState.backtest_retries` counts consecutive backtest failures per issue. The `Backtester` increments it on every failure route back to the `Engineer`; once it reaches `MAX_BACKTEST_RETRIES` (currently 3) the issue is moved to `status:blocked` instead of retrying. A successful backtest resets it to 0. Do not route back to the engineer without going through this counter.
-6. **Review Loop Cap:** `AgentState.review_rejections` counts reviewer rejections per issue (spec *and* code). The `Reviewer` increments it on every rejection; at `MAX_REVIEW_REJECTIONS` (currently 3) the issue is moved to `status:blocked`. An approval resets it to 0.
-7. **Structured Reviewer Verdict:** The `Reviewer` MUST return a structured `ReviewDecision` (`decision`, `blame`, `review_markdown`) via `with_structured_output`. Routing keys off these fields — never re-introduce string scraping of the model's free-text (e.g. matching `[APPROVED]`).
+6. **Review Loop Cap:** `AgentState.review_rejections` is a single cumulative counter shared by BOTH reviewers (Strategy and Code). Each increments it on rejection via `nodes/review_common.apply_rejection`; it is **never reset**, so at `MAX_REVIEW_REJECTIONS` (currently 5) the issue is moved to `status:blocked`. This guarantees bounded review churn.
+7. **Structured Reviewer Verdict:** Both reviewers MUST return a structured `ReviewDecision` (`decision`, `review_markdown`) via `with_structured_output`. Routing keys off `decision` — never re-introduce string scraping of free-text (e.g. matching `[APPROVED]`). Blame is **structural**: the Code Reviewer always routes rejections to the Engineer, the Strategy Reviewer always to the Researcher.
 
 ---
 
@@ -56,7 +56,8 @@ The interplay between the `Engineer` agent and the `Backtester` agent represents
 The `Engineer` agent **MUST** generate execution code that writes its output directly to a file located at `os.environ['BACKTEST_RESULTS_PATH']`.
 
 The JSON payload structure must adhere strictly to these keys and value types:
-* **Required Keys:** `total_return`, `max_drawdown`, `sharpe_ratio`, `total_trades`.
+* **Required Keys:** `total_return`, `max_drawdown`, `sharpe_ratio`, `total_trades`, `benchmark_return`.
+* `benchmark_return` is the buy-and-hold return of the strategy's primary instrument over the same window, used by the Reviewer to judge whether the strategy has any edge.
 * **Value Types:** Strictly raw floats or integers. **Never** include formatting symbols or wrapped strings (e.g., use `0.15`, do not use `"15%"`).
 
 ### 2. The yfinance Requirement

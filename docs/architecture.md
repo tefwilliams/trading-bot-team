@@ -16,9 +16,9 @@ A multi-agent team that researches, implements, and reviews trading strategies. 
 
 ## Current pipeline scope
 
-The active pipeline is: **Researcher → Reviewer (spec) → Engineer → Backtester → Reviewer (code) → human merge**, with the Backtester ⇄ Engineer self-correction loop in the middle.
+The active pipeline is: **Researcher → Strategy Reviewer (spec) → Engineer → Backtester → Code Reviewer → Strategy Reviewer (edge) → human merge**, with the Backtester ⇄ Engineer self-correction loop in the middle.
 
-The **Risk Manager** and **Historian** roles existed in earlier iterations and are intentionally out of scope for now: risk review has been folded into the Reviewer, and performance-manifest archiving is deferred. The only human gate is the final PR merge.
+Review is split by concern: the **Code Reviewer** (cheap model) owns implementation correctness, and the **Strategy Reviewer** (Pro model) owns strategy soundness and edge. The **Risk Manager** and **Historian** roles existed in earlier iterations and are intentionally out of scope for now: risk review has been folded into the Strategy Reviewer, and performance-manifest archiving is deferred. The only human gate is the final PR merge.
 
 ## Framework: LangGraph
 
@@ -51,10 +51,12 @@ Free, has a proper API (PyGithub), and gives a realistic ticket-board feel. Agen
 - **Constraint:** The system operates entirely on Google AI Studio **free-tier** models. The 3.x
   Pro models are paid-only (since April 2026); `gemini-2.5-pro` is still free but heavily
   rate-limited (~5 RPM, 50-100 RPD), and `gemini-3-flash` is the strongest high-quota free model.
-- **Per-role tiering (see `llm.py`):** Researcher → `gemini-3.1-flash-lite` (cheap, high quota);
-  Engineer → `gemini-3-flash` (code generation); Reviewer → `gemini-2.5-pro` (most capable free
-  reasoning, for the sole quality gate) with an automatic fallback to `gemini-3-flash` when Pro
-  errors or throttles. Mixing models also spreads usage across separate rate-limit quotas.
+- **Per-role tiering (see `llm.py`):** reasoning effort is concentrated on the *strategy* side.
+  Researcher and Engineer → `gemini-3-flash` (strong, high-quota producers); **Strategy Reviewer**
+  (spec soundness + edge judgment) → `gemini-2.5-pro` with a fallback to `gemini-3-flash`; **Code
+  Reviewer** (mechanical implementation checks) → `gemini-3.1-flash-lite`. The cheap Code Reviewer
+  absorbs the Engineer bug-fix churn loop, so the rate-limited Pro Strategy Reviewer is only invoked
+  on mechanically-clean code — keeping Pro usage bounded.
 - **Architectural Compensation:** Because these are still lightweight models, the architecture compensates for their lower reasoning depth via:
   1. **Aggressive System Instructions:** The `llm.py` wrapper must enforce rigid, checklist-based personas (especially for the Reviewer).
   2. **Linear Execution:** Avoiding infinite agent-to-agent chatter to preserve Requests Per Minute (RPM) limits.

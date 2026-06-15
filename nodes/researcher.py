@@ -31,8 +31,8 @@ def researcher_node(state: AgentState):
     # Post the proposal as a comment
     github.post_comment(state["issue_number"], content)
 
-    # Transition the ticket: Researcher -> Reviewer
-    github.set_status(state["issue_number"], "reviewer")
+    # Transition the ticket: Researcher -> Strategy Reviewer (spec review)
+    github.set_status(state["issue_number"], "strategy_reviewer")
 
     return {
         "messages": [

@@ -34,9 +34,11 @@ REQUIREMENTS:
 6. **OUTPUT CONTRACT**: At the very end of `run_backtest()`, you MUST write the final metrics to a JSON file.
    - Implementation detail: Use `os.getenv('BACKTEST_RESULTS_PATH', 'backtest_results.json')` to get the filename.
    - `import json` and use `json.dump(metrics, f)`.
-   - Use exact keys: `"total_return"`, `"max_drawdown"`, `"sharpe_ratio"`, `"total_trades"`.
+   - Use exact keys: `"total_return"`, `"max_drawdown"`, `"sharpe_ratio"`, `"total_trades"`, `"benchmark_return"`.
    - Do NOT include percentage signs in the JSON values; use raw floats (e.g., 0.15 for 15%).
    - `"total_trades"` MUST be an integer representing the number of completed round-trip trades.
+   - `"benchmark_return"` MUST be the buy-and-hold return of the strategy's primary instrument over the
+     same window, so the Reviewer can judge whether the strategy beats doing nothing.
    - This is critical for automated parsing.
 7. **ENTRY POINT**: You MUST include the `if __name__ == "__main__": run_backtest()` block at the bottom of the script.
 8. **ROBUST DATA HANDLING**: You MUST verify that the downloaded DataFrames are not None and not empty.
@@ -60,6 +62,8 @@ std = strategy_returns.std()
 sharpe_ratio = float((strategy_returns.mean() / std) * (252 ** 0.5)) if std and std > 0 else 0.0
 # total_trades = number of completed round trips, i.e. transitions out of a position
 total_trades = int((signals.shift(1).fillna(0) != signals.fillna(0)).sum())
+# benchmark_return = buy-and-hold of the primary instrument over the same window
+benchmark_return = float(data["Close"].iloc[-1] / data["Close"].iloc[0] - 1)
 ```
 
 ### SELF-REFLECTION MANDATE:
@@ -67,7 +71,7 @@ Before providing the final code block, perform the following checks:
 1. Does my `run_backtest` use `os.environ['BACKTEST_RESULTS_PATH']`?
 2. Did I include the `if __name__ == "__main__":` block?
 3. Did I flatten the yfinance MultiIndex columns?
-4. Are the JSON keys exactly "total_return", "max_drawdown", "sharpe_ratio", and "total_trades"?
+4. Are the JSON keys exactly "total_return", "max_drawdown", "sharpe_ratio", "total_trades", and "benchmark_return"?
 5. Did I lag signals with `.shift(1)` before computing returns (no look-ahead bias)?
 
 Output ONLY the Python code inside a markdown block.

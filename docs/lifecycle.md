@@ -11,10 +11,10 @@ end-to-end until the work is ready to merge (`status:done`) or stuck (`status:bl
 
 ## Phase 1: Ideation & Research
 1. **Manager (Human)** creates an issue labelled `status:researcher`.
-2. **Researcher (AI)** proposes a strategy spec and moves it to `status:reviewer`.
-3. **Reviewer (AI)** critiques the spec against its checklist and returns a structured verdict.
+2. **Researcher (AI)** proposes a strategy spec and moves it to `status:strategy_reviewer`.
+3. **Strategy Reviewer (AI)** critiques the spec for soundness and returns a structured verdict.
    - `approved` → `status:engineer` (straight to implementation, no human gate).
-   - `rejected` (`blame: researcher`) → back to `status:researcher`.
+   - `rejected` → back to `status:researcher`.
 
 ## Phase 2: Implementation
 1. **Engineer (AI)**:
@@ -30,11 +30,20 @@ end-to-end until the work is ready to merge (`status:done`) or stuck (`status:bl
    - **Retry cap:** failures are counted per issue. After **3** consecutive failures the issue
      is escalated to `status:blocked` for a human to investigate — it is no longer retried
      automatically. A successful backtest resets the counter.
-   - **Success:** posts performance metrics and routes to `status:reviewer`.
-2. **Reviewer (AI)** critiques the executed code (correctness, look-ahead bias, and risk) and
-   returns a structured verdict.
+   - **Success:** posts performance metrics (including benchmark) and routes to `status:code_reviewer`.
+2. **Code Reviewer (AI)** checks the *implementation* — contract compliance, look-ahead bias in the
+   code, faithfulness to the spec, correctness, pandas hygiene. Runs on the cheap model, so it
+   absorbs the bug-fix churn loop.
+   - `approved` → `status:strategy_reviewer`.
+   - `rejected` → back to `status:engineer` (implementation bug).
+3. **Strategy Reviewer (AI)** judges *edge*: does the backtested strategy beat its buy-and-hold
+   benchmark with a positive risk-adjusted return? A clean backtest with poor performance is a
+   rejection, not a pass. Runs on the strong (Pro) model.
    - `approved` → `status:done`.
-   - `rejected` (`blame: engineer`) → back to `status:engineer`.
+   - `rejected` → back to `status:researcher` (the hypothesis has no edge).
+
+**Review cap:** rejections from *both* reviewers accumulate in a single per-issue counter (never
+reset). After **5** the issue is escalated to `status:blocked`. This bounds all review churn.
    - **Review cap:** rejections are counted per issue. After **3** the issue is escalated to
      `status:blocked`. An approval resets the counter. This bounds both the spec and code review loops.
 

@@ -4,24 +4,27 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 load_dotenv()
 
-# Per-role primary model. All are on the Google AI Studio free tier.
-# - Reviewer uses `gemini-2.5-pro`, the most capable *free* reasoning model, because it is the
-#   sole AI quality gate. It is heavily rate-limited (~5 RPM, 50-100 RPD). NB: the 3.x Pro models are paid.
-# - Engineer uses `gemini-3-flash` for stronger code generation.
-# - Researcher uses the cheap, high-quota `gemini-3.1-flash-lite` for divergent ideation.
+# Per-role primary model. All are on the Google AI Studio free tier. Reasoning effort is
+# concentrated on the *strategy* side (the hard part); implementation is comparatively mechanical:
+# - Strategy Reviewer uses `gemini-2.5-pro`, the most capable *free* reasoning model, for the
+#   spec-soundness and edge judgments. It is heavily rate-limited (~5 RPM, 50-100 RPD) but is
+#   shielded from the implementation-churn loop by the cheaper Code Reviewer. NB: 3.x Pro is paid.
+# - Researcher and Engineer use `gemini-3-flash` (strong, high-quota producers).
+# - Code Reviewer uses `gemini-3.1-flash-lite` for the mechanical implementation checks.
 DEFAULT_MODEL = "gemini-3.1-flash-lite"
 ROLE_MODELS = {
-    "researcher": "gemini-3.1-flash-lite",
+    "researcher": "gemini-3-flash",
     "engineer": "gemini-3-flash",
-    "reviewer": "gemini-2.5-pro",
+    "strategy_reviewer": "gemini-2.5-pro",
+    "code_reviewer": "gemini-3.1-flash-lite",
 }
 
 # Per-role fallback model, used only where the primary is rate-limited enough that a graceful
-# *degrade* makes sense. Only the Reviewer qualifies: its free Pro model throttles easily, so it
-# degrades to the high-quota `gemini-3-flash`. The Researcher and Engineer sit on solid high-quota
-# models and rely on the orchestrator's retry loop instead (no "falling up" to a better model).
+# *degrade* makes sense. Only the Strategy Reviewer qualifies: its free Pro model throttles easily,
+# so it degrades to the high-quota `gemini-3-flash`. Other roles sit on high-quota models and rely
+# on the orchestrator's retry loop instead (no "falling up" to a better model).
 ROLE_FALLBACKS = {
-    "reviewer": "gemini-3-flash",
+    "strategy_reviewer": "gemini-3-flash",
 }
 
 # Per-role sampling temperature. Code generation and critical review want low
@@ -29,7 +32,8 @@ ROLE_FALLBACKS = {
 ROLE_TEMPS = {
     "researcher": 0.7,
     "engineer": 0.3,
-    "reviewer": 0.0,
+    "strategy_reviewer": 0.0,
+    "code_reviewer": 0.0,
 }
 
 
@@ -64,8 +68,8 @@ def get_llm(role: str, system_instruction: str = None, structured_output=None):
     to it so `.invoke()` returns a validated object instead of a message.
 
     If the role has a ROLE_FALLBACKS entry, the returned runnable degrades to that
-    model on any error (e.g. the Reviewer's rate-limited Pro model dropping to
-    gemini-3-flash). Roles without an entry rely on the orchestrator's retry loop.
+    model on any error (e.g. the Strategy Reviewer's rate-limited Pro model dropping
+    to gemini-3-flash). Roles without an entry rely on the orchestrator's retry loop.
     """
     role_key = role.lower()
     model_name = ROLE_MODELS.get(role_key, DEFAULT_MODEL)
