@@ -10,6 +10,14 @@ Original Objective: {body}
 CONVERSATION HISTORY (the proposal and any prior feedback):
 {thread_context}
 
+REFERENCE MATERIAL (curated quant strategies / research):
+{reference_material}
+
+Use the reference material to sanity-check the proposal against established approaches: flag a setup
+that reinvents a known strategy *worse*, omits standard risk controls those approaches rely on, or
+uses oddly specific parameters versus the round defaults of proven setups. Do NOT require the proposal
+to match a reference — a novel idea is fine if it is sound and well-reasoned.
+
 Work through every item explicitly, marking `PASS`, `FAIL`, or `N/A` with a one-line reason.
 
 ## Strategy soundness checklist

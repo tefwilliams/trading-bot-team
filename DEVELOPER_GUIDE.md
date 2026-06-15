@@ -22,6 +22,7 @@ AI assistants must only create or look for files within this established framewo
 | :--- | :--- | :--- |
 | `/nodes/` | LangGraph node execution logic | Every file must house pure function nodes. |
 | `/prompts/` | System prompts & LLM instructions | Isolated from code strings; strictly plain text/markdown. |
+| `/references/` | Curated quant material for the Researcher | `.md`/`.txt`/`.pdf`; loaded by `references.py` and injected into the Researcher's prompt. PDFs are git-ignored. |
 | `/docs/` | System design specifications | Kept high-level; details are offloaded here. |
 | `/scripts/` | Utility & Setup scripts | Non-orchestration helper scripts. |
 | `state.py` | Graph state schema definitions | Houses the central `AgentState` configuration. |
