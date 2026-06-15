@@ -8,6 +8,9 @@ from state import AgentState
 
 logger = logging.getLogger(__name__)
 
+# Consecutive Engineer model/output failures before escalating to a human.
+MAX_ENGINEER_FAILURES = 3
+
 
 class EngineerOutput(BaseModel):
     """Structured engineer output so each channel gets the right granularity."""
@@ -47,19 +50,32 @@ def engineer_node(state: AgentState):
     try:
         result: EngineerOutput = llm.invoke(prompt)
     except Exception as e:
-        # Transient model/parse error: leave the issue at status:engineer so the
-        # orchestrator retries on the next poll.
-        logger.error(f"Engineer failed for #{state['issue_number']}: {e}")
-        return {"messages": [f"Engineer errored on issue #{state['issue_number']}"]}
+        # Model/parse error. Retry on the next poll, but cap consecutive failures so a
+        # persistently-failing issue escalates to a human instead of looping forever.
+        failures = (state.get("engineer_failures", 0) or 0) + 1
+        logger.error(f"Engineer failed for #{state['issue_number']} ({failures}x): {e}")
+        if failures >= MAX_ENGINEER_FAILURES:
+            github.post_comment(
+                state["issue_number"],
+                f"### 🚫 Engineer Stuck\nThe Engineer failed to produce valid output "
+                f"{failures} times (cap: {MAX_ENGINEER_FAILURES}). Moving to `status:blocked`.",
+            )
+            github.set_status(state["issue_number"], "blocked")
+        return {
+            "messages": [f"Engineer errored on issue #{state['issue_number']}"],
+            "engineer_failures": failures,
+        }
 
     branch_name = f"strat/issue-{state['issue_number']}"
     github.ensure_branch(branch_name)
 
+    # Defensive: strip markdown fences in case the model wrapped the code field.
+    clean_code = github.extract_code(result.code)
     file_path = f"strategies/strategy_{state['issue_number']}.py"
     github.create_or_update_file(
         file_path,
         f"Implement strategy for issue #{state['issue_number']}",
-        result.code,
+        clean_code,
         branch_name,
     )
 
@@ -79,5 +95,6 @@ def engineer_node(state: AgentState):
     return {
         "messages": [
             f"Engineer implemented issue #{state['issue_number']} on PR #{pr.number}"
-        ]
+        ],
+        "engineer_failures": 0,
     }

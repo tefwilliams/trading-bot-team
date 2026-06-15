@@ -46,8 +46,15 @@ end-to-end until the work is ready to merge (`status:done`) or stuck (`status:bl
    - `rejected` → notes it on the PR and **closes the PR**, posts a summary to the **issue**, then
      `status:researcher` (the hypothesis has no edge; the next spec gets a fresh PR).
 
-**Review cap:** rejections from *all three* reviewers accumulate in a single per-issue counter (never
-reset). After **5** the issue is escalated to `status:blocked`. This bounds all review churn.
+**Loop caps (all escalate to `status:blocked`):**
+- **Per-cycle review churn** — Strategy + Code rejections within one cycle, capped at **5**; reset
+  when the Performance Reviewer starts a new cycle, so each spec attempt gets a fresh budget.
+- **Research cycles** — distinct strategies tried (Performance-Reviewer "no edge" rejections), capped
+  at **3**.
+- **Backtest retries** (3) and **Engineer failures** (3) as above.
+
+When any cap trips, the issue is blocked **with its PR left open** for inspection. The Performance
+Reviewer only closes (and deletes the branch of) a PR when continuing to a new cycle.
    - **Review cap:** rejections are counted per issue. After **3** the issue is escalated to
      `status:blocked`. An approval resets the counter. This bounds both the spec and code review loops.
 

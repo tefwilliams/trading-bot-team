@@ -3,9 +3,12 @@ import logging
 from llm import get_llm, load_prompt
 from github_utils import GitHubManager
 from state import AgentState
-from nodes.review_common import ReviewDecision, apply_rejection
+from nodes.review_common import ReviewDecision
 
 logger = logging.getLogger(__name__)
+
+# Number of research cycles (distinct strategies tried) before escalating to a human.
+MAX_RESEARCH_CYCLES = 3
 
 
 def performance_reviewer_node(state: AgentState):
@@ -53,24 +56,42 @@ def performance_reviewer_node(state: AgentState):
             "messages": [f"Performance reviewer APPROVED #{state['issue_number']}; -> done"]
         }
 
-    # Rejected: this implementation is a dead end. Note it on the PR and close it, then
-    # distil the verdict to the issue for the Researcher (who works at the strategy level
-    # and won't read the PR). A fresh spec then gets a fresh PR from the Engineer.
+    # Rejected: this strategy has no edge. Distil the verdict to the issue for the
+    # Researcher (who works at the strategy level and won't read the PR).
+    issue_number = state["issue_number"]
+    github.post_comment(issue_number, f"### 📊 Performance Review\n\n{verdict.review_markdown}")
+
+    new_cycles = (state.get("research_cycles", 0) or 0) + 1
+    if new_cycles >= MAX_RESEARCH_CYCLES:
+        # Out of research attempts. Escalate to a human and LEAVE THE PR OPEN for inspection.
+        github.post_comment(
+            issue_number,
+            f"### 🚫 Research Cycle Limit Reached\n{new_cycles} strategies have been tried "
+            f"without a demonstrated edge (cap: {MAX_RESEARCH_CYCLES}). Moving to "
+            f"`status:blocked` for a human. The latest PR is left open for inspection.",
+        )
+        github.set_status(issue_number, "blocked")
+        return {
+            "messages": [
+                f"Performance reviewer REJECTED #{issue_number} — research cap reached, status:blocked"
+            ],
+            "research_cycles": new_cycles,
+        }
+
+    # Start a fresh research cycle: close + delete this dead-end PR/branch (so the next
+    # spec gets a clean PR), then route to the Researcher with a fresh churn budget.
     github.post_comment(
         pr.number,
         "### 📊 Performance Review: No Edge\nClosing this PR — the strategy does not "
         "demonstrate an edge. See the issue for the summary and next steps.",
     )
     github.close_pr(pr.number)
-    github.post_comment(
-        state["issue_number"], f"### 📊 Performance Review\n\n{verdict.review_markdown}"
-    )
-
-    # Route back to the Researcher (cumulative cap may escalate to status:blocked).
-    new_rejections = apply_rejection(github, state, state["issue_number"], "researcher")
+    github.delete_branch(f"strat/issue-{issue_number}")
+    github.set_status(issue_number, "researcher")
     return {
         "messages": [
-            f"Performance reviewer REJECTED #{state['issue_number']} (PR closed); rejection #{new_rejections}"
+            f"Performance reviewer REJECTED #{issue_number} (PR closed); research cycle {new_cycles}"
         ],
-        "review_rejections": new_rejections,
+        "research_cycles": new_cycles,
+        "review_rejections": 0,
     }

@@ -69,16 +69,27 @@ class GitHubManager:
             self.repo.create_file(path, message, content, branch=branch)
 
     def create_pull_request(self, title: str, body: str, head: str, base: str = "main"):
-        """Creates a PR or returns an existing one."""
+        """Creates a PR or returns an existing open one."""
         try:
             return self.repo.create_pull(title=title, body=body, head=head, base=base)
         except GithubException as e:
-            if e.status == 422:  # PR already exists
+            # 422 can mean "an open PR already exists" OR other causes (e.g. no commits
+            # between base and head). Only reuse when there is genuinely an open PR.
+            if e.status == 422:
                 pulls = self.repo.get_pulls(
                     state="open", head=f"{self.repo.owner.login}:{head}"
                 )
-                return pulls[0]
+                if pulls.totalCount > 0:
+                    return pulls[0]
             raise e
+
+    def delete_branch(self, branch_name: str):
+        """Deletes a branch if it exists. Used when a strategy's PR is abandoned, so the
+        next spec starts from a fresh branch off main (and always has a real diff)."""
+        try:
+            self.repo.get_git_ref(f"heads/{branch_name}").delete()
+        except GithubException:
+            pass
 
     def extract_code(self, text: str):
         """Extracts the first python code block found in the text."""
@@ -121,7 +132,13 @@ class GitHubManager:
     def get_pr_context(self, pr_number: int):
         """The PR — the implementation-level channel: description, diff, conversation
         comments (backtest reports & code review) and any inline review comments.
-        Used by the Performance Reviewer (PR-only)."""
+        Used by the Performance Reviewer (PR-only).
+
+        NOTE: this concatenates the full diff plus every conversation comment, including
+        verbose backtest console output. Over many iterations this can grow large and
+        weigh on the reviewer prompts (the Code Reviewer is on the smallest context tier).
+        If that becomes a problem, trim the console output or cap to the most recent
+        backtest report rather than including the whole history."""
         pr = self.repo.get_pull(pr_number)
 
         diff = "".join(f"File: {f.filename}\n{f.patch}\n" for f in pr.get_files())

@@ -71,8 +71,10 @@ models with rigid checklist prompts and deterministic verification.
   return alone can mislead (lower return with much lower drawdown may still be edge). The reviewer is
   told to weigh risk-adjusted performance, not just "beats benchmark."
 
-Rejections from all three reviewers share a single cumulative per-issue counter; after
-`MAX_REVIEW_REJECTIONS` (5) the issue is escalated to `status:blocked`.
+Loop caps (all → `status:blocked`, PR left open): Strategy + Code rejections share a **per-cycle**
+counter (`MAX_REVIEW_REJECTIONS`, 5) that resets each research cycle; the number of research cycles
+(Performance-Reviewer "no edge" rejections) is capped by `MAX_RESEARCH_CYCLES` (3). See
+`DEVELOPER_GUIDE.md` for all counters.
 
 ## Backtester (Deterministic Node — Not an LLM)
 
