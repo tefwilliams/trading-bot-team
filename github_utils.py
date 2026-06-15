@@ -69,16 +69,27 @@ class GitHubManager:
             self.repo.create_file(path, message, content, branch=branch)
 
     def create_pull_request(self, title: str, body: str, head: str, base: str = "main"):
-        """Creates a PR or returns an existing one."""
+        """Creates a PR or returns an existing open one."""
         try:
             return self.repo.create_pull(title=title, body=body, head=head, base=base)
         except GithubException as e:
-            if e.status == 422:  # PR already exists
+            # 422 can mean "an open PR already exists" OR other causes (e.g. no commits
+            # between base and head). Only reuse when there is genuinely an open PR.
+            if e.status == 422:
                 pulls = self.repo.get_pulls(
                     state="open", head=f"{self.repo.owner.login}:{head}"
                 )
-                return pulls[0]
+                if pulls.totalCount > 0:
+                    return pulls[0]
             raise e
+
+    def delete_branch(self, branch_name: str):
+        """Deletes a branch if it exists. Used when a strategy's PR is abandoned, so the
+        next spec starts from a fresh branch off main (and always has a real diff)."""
+        try:
+            self.repo.get_git_ref(f"heads/{branch_name}").delete()
+        except GithubException:
+            pass
 
     def extract_code(self, text: str):
         """Extracts the first python code block found in the text."""
@@ -103,21 +114,61 @@ class GitHubManager:
         )
         return pulls[0] if pulls.totalCount > 0 else None
 
-    def get_pr_context(self, pr_number: int):
-        """Gathers diff and review comments from a PR."""
-        pr = self.repo.get_pull(pr_number)
-        files = pr.get_files()
-        diff = ""
-        for f in files:
-            diff += f"File: {f.filename}\n{f.patch}\n"
+    def update_pr_body(self, pr_number: int, body: str):
+        """Replaces a PR's description (used by the Engineer to keep it current)."""
+        self.repo.get_pull(pr_number).edit(body=body)
 
-        # PR Review comments are specifically on lines of code
-        reviews = pr.get_review_comments()
-        review_text = "\n".join(
-            [f"{r.user.login} (on {r.path}): {r.body}" for r in reviews]
+    def close_pr(self, pr_number: int):
+        """Closes a PR without merging (used when a strategy is abandoned)."""
+        self.repo.get_pull(pr_number).edit(state="closed")
+
+    def get_issue_context(self, issue):
+        """The issue thread only — the strategy-level channel (spec & reviews).
+        Used by the Researcher and Strategy Reviewer, who work at the strategy level."""
+        comments = list(issue.get_comments())
+        thread = "\n\n".join(f"--- {c.user.login} ---\n{c.body}" for c in comments)
+        return f"=== ISSUE #{issue.number} THREAD (strategy spec & reviews) ===\n{thread}"
+
+    def get_pr_context(self, pr_number: int):
+        """The PR — the implementation-level channel: description, diff, conversation
+        comments (backtest reports & code review) and any inline review comments.
+        Used by the Performance Reviewer (PR-only).
+
+        NOTE: this concatenates the full diff plus every conversation comment, including
+        verbose backtest console output. Over many iterations this can grow large and
+        weigh on the reviewer prompts (the Code Reviewer is on the smallest context tier).
+        If that becomes a problem, trim the console output or cap to the most recent
+        backtest report rather than including the whole history."""
+        pr = self.repo.get_pull(pr_number)
+
+        diff = "".join(f"File: {f.filename}\n{f.patch}\n" for f in pr.get_files())
+
+        conversation = "\n\n".join(
+            f"--- {c.user.login} ---\n{c.body}" for c in self.get_issue(pr_number).get_comments()
         )
 
-        return diff, review_text
+        inline = "\n".join(
+            f"{r.user.login} (on {r.path}): {r.body}" for r in pr.get_review_comments()
+        )
+
+        parts = [
+            f"=== PR #{pr_number} DESCRIPTION ===\n{pr.body or ''}",
+            f"=== PR #{pr_number} CONVERSATION (backtest reports & code review) ===\n{conversation}",
+            f"=== PR #{pr_number} DIFF ===\n{diff}",
+        ]
+        if inline.strip():
+            parts.append(f"=== PR #{pr_number} INLINE REVIEW COMMENTS ===\n{inline}")
+        return "\n\n".join(parts)
+
+    def get_full_context(self, issue):
+        """Both channels — issue thread + PR (if one exists). Returns (text, pr) with
+        pr None pre-implementation. Used by the Engineer and Code Reviewer, who must see
+        the spec AND the implementation-side feedback."""
+        parts = [self.get_issue_context(issue)]
+        pr = self.get_related_pr(issue.number)
+        if pr:
+            parts.append(self.get_pr_context(pr.number))
+        return "\n\n".join(parts), pr
 
     def get_latest_code_block(self, issue_number: int):
         """Extracts the Python code from the PR branch if it exists, else from comments."""

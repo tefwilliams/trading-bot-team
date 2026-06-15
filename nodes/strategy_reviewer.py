@@ -3,7 +3,7 @@ import logging
 from llm import get_llm, load_prompt
 from github_utils import GitHubManager
 from state import AgentState
-from nodes.review_common import ReviewDecision, build_review_context, apply_rejection
+from nodes.review_common import ReviewDecision, apply_rejection
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,8 @@ def strategy_reviewer_node(state: AgentState):
     """
     github = GitHubManager()
     issue = github.get_issue(state["issue_number"])
-    thread_context, _pr = build_review_context(github, issue)
+    # Spec review works at the strategy level — issue thread only (no PR yet).
+    thread_context = github.get_issue_context(issue)
 
     template = load_prompt("strategy_reviewer.md")
     prompt = template.format(

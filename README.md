@@ -68,6 +68,20 @@ ready to merge (`status:done`) or stuck (`status:blocked`). The human's review *
 > versions and are intentionally **not** part of the current pipeline. Risk review now lives in the
 > Reviewer. They may be reintroduced later.
 
+## Communication channels
+
+The agents talk through two channels:
+
+- **The issue is the strategy record** — the spec, the strategy reviews, and a single high-level
+  "implemented" note per spec. It stays clean and readable at the strategy level.
+- **The PR is the implementation log** — every Engineer iteration, backtest report, and code review.
+  Each strategy attempt gets its **own PR**: when the Performance Reviewer rejects a strategy it
+  closes the PR, so the next spec opens a fresh one.
+
+Each node reads whichever channel(s) it needs, so feedback is always visible to the agent meant to
+act on it (e.g. the Engineer reads the PR, where its backtest and code-review feedback lives). The
+exact per-node read/write contract is in [`DEVELOPER_GUIDE.md`](DEVELOPER_GUIDE.md).
+
 ## Key features
 
 - **GitHub as the state machine & UI** — transparent audit trail via Issues, `status:` labels, and PR comments.

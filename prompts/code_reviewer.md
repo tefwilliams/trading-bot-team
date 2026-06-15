@@ -32,6 +32,9 @@ Work through every item explicitly, marking `PASS`, `FAIL`, or `N/A` with a one-
     Performance Reviewer to judge edge).
   - `rejected` — any material implementation defect. (It returns to the Engineer to fix.)
 - `review_markdown`: your full review — each item marked PASS/FAIL/N/A, and, if rejected, the precise
-  fixes the Engineer must make.
+  fixes the Engineer must make. (This is posted on the PR.)
+- `high_level_summary`: a short, plain-English summary (2-3 sentences) of what the approved
+  implementation does. Posted to the issue on approval as the spec-level "implemented" note, so write
+  it for a strategy-level reader, not a code reviewer. (If you reject, this is ignored — leave it brief.)
 
 NEVER approve code with look-ahead bias, a broken results contract, or a clear divergence from the spec.

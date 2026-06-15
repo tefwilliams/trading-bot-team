@@ -3,7 +3,7 @@ import logging
 from llm import get_llm, load_prompt
 from github_utils import GitHubManager
 from state import AgentState
-from nodes.review_common import ReviewDecision, build_review_context, apply_rejection
+from nodes.review_common import CodeReviewDecision, apply_rejection
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ def code_reviewer_node(state: AgentState):
     """
     github = GitHubManager()
     issue = github.get_issue(state["issue_number"])
-    thread_context, pr = build_review_context(github, issue)
+    thread_context, pr = github.get_full_context(issue)
 
     if not pr:
         # Should not happen (a PR exists after the engineer/backtester run). Be defensive.
@@ -30,9 +30,9 @@ def code_reviewer_node(state: AgentState):
         title=issue.title, body=issue.body, thread_context=thread_context
     )
 
-    llm = get_llm("code_reviewer", structured_output=ReviewDecision)
+    llm = get_llm("code_reviewer", structured_output=CodeReviewDecision)
     try:
-        verdict: ReviewDecision = llm.invoke(prompt)
+        verdict: CodeReviewDecision = llm.invoke(prompt)
     except Exception as e:
         # Fail safe: never auto-pass on a model/parse error. Send back to the Engineer.
         logger.error(f"Code reviewer failed for #{state['issue_number']}: {e}")
@@ -43,10 +43,16 @@ def code_reviewer_node(state: AgentState):
         github.set_status(state["issue_number"], "engineer")
         return {"messages": [f"Code reviewer errored on issue #{state['issue_number']}"]}
 
+    # Detailed code review goes on the PR (the implementation channel).
     github.post_comment(pr.number, f"### 🔧 Code Review\n\n{verdict.review_markdown}")
 
     if verdict.decision == "approved":
-        # Implementation is sound -> hand to the Performance Reviewer to judge edge.
+        # The spec is now implemented and mechanically sound. Post the one spec-level
+        # "implemented" note to the issue, then hand to the Performance Reviewer.
+        github.post_comment(
+            state["issue_number"],
+            f"### ✅ Implementation Approved\n{verdict.high_level_summary}\n\nSee PR {pr.html_url}.",
+        )
         github.set_status(state["issue_number"], "performance_reviewer")
         return {
             "messages": [

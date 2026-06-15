@@ -20,7 +20,10 @@ end-to-end until the work is ready to merge (`status:done`) or stuck (`status:bl
 1. **Engineer (AI)**:
    - Creates a feature branch (`strat/issue-X`).
    - Implements the strategy in `strategies/strategy_X.py`.
-   - Opens a **Pull Request**.
+   - Opens a **fresh Pull Request per spec** (the previous spec's PR was closed when its strategy was
+     abandoned). While iterating on the *same* spec it reuses that open PR — keeping its description
+     current and posting a change-summary comment on the **PR** each iteration. It does not post to
+     the issue; the issue stays at the strategy level.
    - Transitions the issue to `status:backtester`.
 
 ## Phase 3: Validation & Self-Correction
@@ -32,18 +35,26 @@ end-to-end until the work is ready to merge (`status:done`) or stuck (`status:bl
      automatically. A successful backtest resets the counter.
    - **Success:** posts performance metrics (including benchmark) and routes to `status:code_reviewer`.
 2. **Code Reviewer (AI)** checks the *implementation* — contract compliance, look-ahead bias in the
-   code, faithfulness to the spec, correctness, pandas hygiene. Runs on the cheap model, so it
-   absorbs the bug-fix churn loop.
-   - `approved` → `status:performance_reviewer`.
+   code, faithfulness to the spec, correctness, pandas hygiene. Posts its review on the **PR**.
+   Runs on the cheap model, so it absorbs the bug-fix churn loop.
+   - `approved` → posts the spec-level "implemented" note to the **issue**, then `status:performance_reviewer`.
    - `rejected` → back to `status:engineer` (implementation bug).
 3. **Performance Reviewer (AI)** judges *edge*: does the backtested strategy beat its buy-and-hold
    benchmark with a positive risk-adjusted return? A clean backtest with poor performance is a
    rejection, not a pass.
-   - `approved` → `status:done`.
-   - `rejected` → back to `status:researcher` (the hypothesis has no edge).
+   - `approved` → posts the verdict on the **PR**, then `status:done` (ready for the human to merge).
+   - `rejected` → notes it on the PR and **closes the PR**, posts a summary to the **issue**, then
+     `status:researcher` (the hypothesis has no edge; the next spec gets a fresh PR).
 
-**Review cap:** rejections from *all three* reviewers accumulate in a single per-issue counter (never
-reset). After **5** the issue is escalated to `status:blocked`. This bounds all review churn.
+**Loop caps (all escalate to `status:blocked`):**
+- **Per-cycle review churn** — Strategy + Code rejections within one cycle, capped at **5**; reset
+  when the Performance Reviewer starts a new cycle, so each spec attempt gets a fresh budget.
+- **Research cycles** — distinct strategies tried (Performance-Reviewer "no edge" rejections), capped
+  at **3**.
+- **Backtest retries** (3) and **Engineer failures** (3) as above.
+
+When any cap trips, the issue is blocked **with its PR left open** for inspection. The Performance
+Reviewer only closes (and deletes the branch of) a PR when continuing to a new cycle.
    - **Review cap:** rejections are counted per issue. After **3** the issue is escalated to
      `status:blocked`. An approval resets the counter. This bounds both the spec and code review loops.
 

@@ -26,22 +26,17 @@ class ReviewDecision(BaseModel):
     )
 
 
-def build_review_context(github, issue):
-    """Concatenate the issue thread and, if a PR exists, its diff + review comments.
-    Returns (thread_context, pr) where pr is None when no implementation exists yet."""
-    comments = list(issue.get_comments())
-    thread_context = "\n\n".join(
-        f"--- Comment by {c.user.login} ---\n{c.body}" for c in comments
-    )
+class CodeReviewDecision(ReviewDecision):
+    """Code Reviewer verdict. Adds a high-level summary that, on approval, is posted to
+    the issue as the spec-level 'implemented' note (the only implementation milestone the
+    strategy-side audience needs to see)."""
 
-    pr = github.get_related_pr(issue.number)
-    if pr:
-        diff, reviews = github.get_pr_context(pr.number)
-        thread_context += (
-            f"\n\n--- PULL REQUEST DIFF (#{pr.number}) ---\n{diff}"
-            f"\n\n--- PR REVIEW COMMENTS ---\n{reviews}"
+    high_level_summary: str = Field(
+        description=(
+            "A short, plain-English summary (2-3 sentences) of what the implementation does, "
+            "for the issue's strategy-level audience. Used only when the decision is 'approved'."
         )
-    return thread_context, pr
+    )
 
 
 def apply_rejection(github, state, target_id, next_role):

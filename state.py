@@ -15,7 +15,13 @@ class AgentState(TypedDict):
     # Reset to 0 on a successful backtest; when it hits MAX_BACKTEST_RETRIES the
     # issue is escalated to a human (status:blocked).
     backtest_retries: int
-    # Cumulative reviewer rejections across all three reviewers (Strategy + Code + Performance).
-    # Never reset, so an issue is guaranteed to reach status:done or status:blocked within a bounded
-    # number of rejections; at MAX_REVIEW_REJECTIONS it is escalated to a human (status:blocked).
+    # Per-cycle churn counter: Strategy- and Code-Reviewer rejections within one research
+    # cycle. Reset to 0 when the Performance Reviewer starts a new cycle; at
+    # MAX_REVIEW_REJECTIONS the issue is escalated to a human (status:blocked).
     review_rejections: int
+    # Number of research cycles attempted (Performance-Reviewer "no edge" rejections). Bounds
+    # the outer loop; at MAX_RESEARCH_CYCLES the issue is escalated to a human (status:blocked).
+    research_cycles: int
+    # Consecutive Engineer model/output failures. Reset to 0 on success; at
+    # MAX_ENGINEER_FAILURES the issue is escalated to a human (status:blocked).
+    engineer_failures: int
