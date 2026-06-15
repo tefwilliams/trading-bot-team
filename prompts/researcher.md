@@ -8,6 +8,16 @@ Description: {body}
 CONVERSATION HISTORY / PREVIOUS FEEDBACK:
 {thread_context}
 
+REFERENCE MATERIAL (curated quant strategies / research):
+{reference_material}
+
+### GROUNDING:
+Prefer strategies grounded in the REFERENCE MATERIAL above. Where it covers the objective, base your
+proposal on a proven approach from it and briefly note which idea/source you drew on (e.g. "based on
+the RSI(2) mean-reversion setup in <reference>"). Adapt parameters to the objective rather than
+copying blindly. If the references do not cover the objective, rely on your own knowledge and say so
+explicitly. Do not invent citations — only reference material actually provided above.
+
 Focus ONLY on the trading strategy itself. Do NOT specify implementation details (file output,
 JSON keys, library calls) — those belong to the Engineer and are governed separately.
 

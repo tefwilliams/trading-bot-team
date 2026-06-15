@@ -25,6 +25,8 @@ models with rigid checklist prompts and deterministic verification.
 - **Responsibilities:** Propose strategy ideas with a simple mathematical rationale and define
   entry/exit conditions in plain, unambiguous English. Must use explicit step-by-step logic to
   compensate for lightweight model reasoning.
+- **Grounding:** Reads curated material from `references/` (loaded by `references.py`) and prefers
+  proven approaches from it, noting which it drew on — rather than relying on the model's memory alone.
 - **Output:** An explicit strategy proposal posted to the issue; moves it to `status:strategy_reviewer`.
 
 ## Strategy Reviewer
@@ -33,6 +35,8 @@ models with rigid checklist prompts and deterministic verification.
   — look-ahead bias in the logic, ambiguous rules, overfitting, plausibility of the hypothesis, and
   risk controls (there is no separate Risk Manager, so risk soundness lives here). This is the hardest
   reasoning task, so it runs on Pro; it fires once per research iteration.
+- **Grounding:** reads the same `references/` material as the Researcher to sanity-check the proposal
+  against established approaches (reinvented-worse, missing standard risk controls, overfit parameters).
 - **Routing:** approval → Engineer; rejection → Researcher.
 - **Output:** A structured verdict (`decision`, `review_markdown`) via structured-output mode.
 

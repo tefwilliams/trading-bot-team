@@ -2,6 +2,7 @@ import logging
 
 from llm import get_llm, load_prompt
 from github_utils import GitHubManager
+from references import load_references
 from state import AgentState
 from nodes.review_common import ReviewDecision, apply_rejection
 
@@ -21,9 +22,16 @@ def strategy_reviewer_node(state: AgentState):
     # Spec review works at the strategy level — issue thread only (no PR yet).
     thread_context = github.get_issue_context(issue)
 
+    # Same curated references the Researcher used — lets the reviewer sanity-check the
+    # proposal against established approaches.
+    reference_material = load_references() or "(no reference material provided)"
+
     template = load_prompt("strategy_reviewer.md")
     prompt = template.format(
-        title=issue.title, body=issue.body, thread_context=thread_context
+        title=issue.title,
+        body=issue.body,
+        thread_context=thread_context,
+        reference_material=reference_material,
     )
 
     llm = get_llm("strategy_reviewer", structured_output=ReviewDecision)

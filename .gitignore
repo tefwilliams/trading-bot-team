@@ -39,3 +39,8 @@ data/
 *.parquet
 backtest_results.json
 checkpoints.*
+
+# Reference PDFs are often large/copyrighted — keep them local. Markdown/text notes in
+# references/ stay committed (the team's versioned knowledge base). Use `git add -f` to
+# commit a specific PDF.
+references/*.pdf

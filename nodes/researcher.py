@@ -1,5 +1,6 @@
 from llm import get_llm, load_prompt
 from github_utils import GitHubManager
+from references import load_references
 from state import AgentState
 
 
@@ -13,9 +14,16 @@ def researcher_node(state: AgentState):
     # Implementation-side outcomes reach it as the Performance Reviewer's distilled summary.
     thread_context = github.get_issue_context(issue)
 
+    # Curated reference material (references/) so proposals are grounded in proven
+    # approaches rather than the model's parametric memory alone.
+    reference_material = load_references() or "(no reference material provided)"
+
     template = load_prompt("researcher.md")
     prompt = template.format(
-        title=issue.title, body=issue.body, thread_context=thread_context
+        title=issue.title,
+        body=issue.body,
+        thread_context=thread_context,
+        reference_material=reference_material,
     )
 
     # Thinking model will generate reasoning + response
