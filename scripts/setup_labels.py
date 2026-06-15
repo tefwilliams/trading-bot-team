@@ -17,14 +17,14 @@ def setup_labels():
     repo = g.get_repo(repo_name)
 
     labels = {
-        # Statuses (Mapping to LangGraph nodes)
+        # Statuses mapping to LangGraph nodes (processed by the orchestrator)
         "status:researcher": "FBCA04",
         "status:engineer": "1D76DB",
-        "status:reviewer": "D4C5F9",
-        "status:risk_manager": "E11D21",
         "status:backtester": "D4C5F9",
-        "status:historian": "006B75",
-        "status:manager": "0E8A16",
+        "status:reviewer": "C5DEF5",
+        # Terminal, human-owned statuses (no node processes these)
+        "status:done": "0E8A16",  # Code approved — waiting for the human to merge
+        "status:blocked": "E11D21",  # Self-correction cap hit — needs a human
         # Types
         "type:strategy": "5319E7",
         "type:bug": "D93F0B",

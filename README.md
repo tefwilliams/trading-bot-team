@@ -1,88 +1,77 @@
-# trading-bot-team
 # 🤖 AI Trading Bot Team
 
-A personal learning project: a simple algorithmic trading bot built as a team of AI agents (researcher, engineer, reviewer) coordinated by me as the manager. The goal is to learn multi-agent orchestration patterns — the trading logic itself is secondary.
-A multi-agent autonomous system built with **LangGraph** and **GitHub Issues** designed to research, implement, and validate trading strategies. This project demonstrates advanced agentic workflows, including self-correction loops and test-driven development (TDD) patterns for LLMs.
+A personal learning project: a simple algorithmic trading "team" built as a set of AI agents
+(Researcher, Engineer, Reviewer) plus a deterministic Backtester, coordinated through GitHub
+Issues. The **goal is to learn multi-agent orchestration patterns** — the trading logic itself
+is secondary. The agents do the work; a human reviews and merges.
 
 ## Architecture at a glance
-## 🏗️ System Architecture
 
-- **Framework:** LangGraph (stateful agent workflows with human-in-the-loop checkpoints)
-- **Models:** Gemini 3.1 Flash Lite (Google) used across all roles for cost-efficiency.
-- **Coordination layer:** GitHub Issues as a ticket board — agents read and write issues, I act as the manager
-- **Workflow:** Pull Request-based implementation loop. Automated backtesting via subprocess execution.
-The system uses GitHub as its state machine and user interface. Agents communicate by posting comments, updating labels, and opening Pull Requests.
+- **Framework:** [LangGraph](https://langchain-ai.github.io/langgraph/) — stateful agent
+  workflow. Here it acts as a thin router: each issue's `status:` label decides which node runs.
+- **Model:** Gemini 3.1 Flash Lite (Google) across all roles, for free-tier cost efficiency.
+  The architecture compensates for the light model with rigid checklist prompts and deterministic
+  verification (the Backtester).
+- **Coordination layer:** GitHub Issues as the ticket board and primary state. Agents read/write
+  comments, flip `status:` labels, and open Pull Requests. The human merges.
+- **Persistence:** SQLite (`SqliteSaver`) checkpoints LangGraph thread state so internal agent
+  history survives restarts. Constraint: `thread_id == issue_number`.
 
-## Status
-### Agent Workflow Diagram
+## Agent workflow
 
-**Active Development.** Core orchestration loop is functional:
-- Researcher, Engineer, Reviewer, Risk Manager, and Historian agents are implemented.
-- Automated Backtester node is operational.
-- GitHub issue-to-PR workflow is established.
-The following diagram illustrates the relationship between agents and the iterative feedback loops that ensure code quality and strategy performance.
-
-## Documentation
 ```mermaid
 graph TD
-    Start(("New Strategy Issue")) --> Researcher
-    Researcher -- "Proposes Spec" --> Reviewer_Spec{"Reviewer <br/> (Spec Check)"}
-    
-    Reviewer_Spec -- "Rejected" --> Researcher
-    Reviewer_Spec -- "Approved" --> Engineer
-    
-    Engineer -- "Implements Code" --> Backtester
-    
-    subgraph "Self-Correction Loop"
-    Backtester -- "Runtime Error / 0 Trades" --> Engineer
+    Start(("New Strategy Issue<br/>status:researcher")) --> Researcher
+    Researcher -- "Proposes spec" --> Reviewer_Spec{"Reviewer<br/>(spec check)"}
+
+    Reviewer_Spec -- "[REJECTED] [RESEARCHER]" --> Researcher
+    Reviewer_Spec -- "[APPROVED]" --> Engineer
+
+    Engineer -- "Opens PR" --> Backtester
+
+    subgraph "Self-Correction Loop (cap: 3)"
+    Backtester -- "Error / 0 trades" --> Engineer
     end
-    
-    Backtester -- "Pass (Has Results)" --> Reviewer_Code{"Reviewer <br/> (Code Check)"}
-    
-    Reviewer_Code -- "Rejected" --> Engineer
-    Reviewer_Code -- "Approved" --> RiskManager
-    
-    RiskManager -- "Unsafe" --> Engineer
-    RiskManager -- "Safe" --> Historian
-    
-    Historian -- "Logs Metrics" --> Manager(("Human Manager <br/> Merge PR"))
+
+    Backtester -- "3 failures" --> Blocked(("status:blocked<br/>Human investigates"))
+    Backtester -- "Pass (has results)" --> Reviewer_Code{"Reviewer<br/>(code check)"}
+
+    Reviewer_Code -- "[REJECTED] [ENGINEER]" --> Engineer
+    Reviewer_Code -- "[APPROVED]" --> Done(("status:done<br/>Human merges PR"))
 ```
 
-- [`docs/architecture.md`](docs/architecture.md) — high-level design and decisions
-- [`docs/roles.md`](docs/roles.md) — agent role definitions and model assignments
-- [`docs/ticket-schema.md`](docs/ticket-schema.md) — planned GitHub Issues schema
-- [`docs/setup.md`](docs/setup.md) — how to set up a dev machine
-## 👥 Agent Roles
+## Agent roles
 
-## Next steps
-| Agent | Responsibility |
-| :--- | :--- |
-| **Researcher** | Analyzes market objectives and proposes formal strategy specifications (Hypothesis, Entry/Exit rules). |
-| **Engineer** | Translates approved specs into production-grade Python code using `pandas` and `yfinance`. |
-| **Backtester** | A deterministic node that executes the strategy in a sandbox, extracting metrics and ensuring the code is functional. |
-| **Reviewer** | Performs qualitative QA on both strategy logic (spec) and code implementation (Pull Requests). |
-| **Risk Manager** | Evaluates strategies for safety, checking position sizing, stop-loss logic, and overfitting risks. |
-| **Historian** | Archives successful backtest results into a central performance manifest for portfolio tracking. |
+| Agent | Type | Responsibility |
+| :--- | :--- | :--- |
+| **Researcher** | LLM | Turns a manager objective into an explicit strategy spec (hypothesis, entry/exit, sizing). |
+| **Engineer** | LLM | Translates the approved spec into runnable Python (`pandas` / `pandas_ta` / `yfinance`), commits to a branch, opens a PR. |
+| **Backtester** | Deterministic | Statically validates the interface, runs the code in a sandboxed subprocess, parses metrics, and enforces the 3-retry self-correction cap. |
+| **Reviewer** | LLM | The single AI quality gate. Checklist-driven review of both the spec and the code, covering correctness, look-ahead bias, **and risk** (position sizing, stop-loss, slippage, overfitting). |
+| **Manager** | Human (you) | Sets objectives by opening issues, and performs the final review by merging (or rejecting) the PR. |
 
-1. **Portfolio Manager:** Build a script that parses the `performance_manifest.csv` and selects strategies based on Sharpe/Volatility.
-2. **Unified Execution Engine:** Develop a wrapper to run multiple strategies in parallel against live/paper market data.
-3. **Alpaca Integration:** Connect the execution engine to Alpaca for real-time paper trading.
-## 🛠️ Key Features
+The flow has **no intermediate human gates** — agents run end-to-end until the code is either
+ready to merge (`status:done`) or stuck (`status:blocked`). The human's review *is* the PR merge.
 
-- **LangGraph Orchestration:** Stateful workflow management allowing for complex transitions and conditional routing.
-- **GitHub as a UI:** Leverages GitHub Issues, Labels (`status:`), and Comments for a transparent audit trail.
-- **TDD Workflow:** Strategies are automatically backtested before being reviewed by the Risk Manager, ensuring the team only evaluates working code.
-- **Multi-Model Support:** Configurable via `llm.py` to use different models (e.g., Gemini 1.5 Pro/Flash) for producers vs. reviewers.
+> **Note:** A Risk Manager and a Historian (performance-manifest archivist) existed in earlier
+> versions and are intentionally **not** part of the current pipeline. Risk review now lives in the
+> Reviewer. They may be reintroduced later.
 
-## 🚀 Getting Started
+## Key features
+
+- **GitHub as the state machine & UI** — transparent audit trail via Issues, `status:` labels, and PR comments.
+- **TDD for LLMs** — every strategy must actually execute and produce metrics (the Backtester) before any qualitative review.
+- **Bounded self-correction** — the Engineer ⇄ Backtester loop is capped at 3 attempts, then escalates to a human (`status:blocked`).
+
+## Getting started
 
 ### Prerequisites
 - Python 3.10+
-- GitHub Personal Access Token
-- Google AI Studio (Gemini) API Key
+- GitHub Personal Access Token (fine-grained, `repo` scope on this repo)
+- Google AI Studio (Gemini) API key
 
 ### Installation
-1. Clone the repository.
+1. Clone the repo.
 2. Create a `.env` file:
    ```env
    GITHUB_TOKEN=your_token
@@ -93,11 +82,34 @@ graph TD
    ```bash
    pip install -r requirements.txt
    ```
-4. Initialize GitHub labels:
+4. Initialise GitHub labels:
    ```bash
    python scripts/setup_labels.py
    ```
-5. Start the orchestrator:
+5. (Optional) seed an example strategy issue:
+   ```bash
+   python scripts/create_first_issue.py
+   ```
+6. Start the orchestrator:
    ```bash
    python main.py
    ```
+
+## Documentation
+
+- [`DEVELOPER_GUIDE.md`](DEVELOPER_GUIDE.md) — technical invariants and the Engineer ⇄ Backtester contract
+- [`docs/architecture.md`](docs/architecture.md) — high-level design and decisions
+- [`docs/roles.md`](docs/roles.md) — agent role definitions
+- [`docs/lifecycle.md`](docs/lifecycle.md) — strategy development lifecycle
+- [`docs/ticket-schema.md`](docs/ticket-schema.md) — GitHub Issues labels & schema
+- [`docs/setup.md`](docs/setup.md) — dev machine setup
+
+## Next steps
+
+1. **Historian / Portfolio Manager:** reintroduce metric archiving to a `performance_manifest.csv`, then select strategies by Sharpe/volatility.
+2. **Unified execution engine:** run multiple approved strategies against live/paper data.
+3. **Alpaca integration:** connect the execution engine for real-time paper trading.
+
+## Out of scope
+
+Real-money trading, real-time data feeds, and production deployment.

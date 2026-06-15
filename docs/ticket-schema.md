@@ -1,18 +1,18 @@
-# Ticket schema (planned)
+# Ticket schema
 
-Status: design only. To be implemented as the next step after agent scaffolding.
+Created by `scripts/setup_labels.py`.
 
 ## Labels
 
 ### Status Labels (Routing Logic)
-These labels control which LangGraph node processes the issue next:
+These labels control which LangGraph node processes the issue next. The orchestrator polls for
+the first four; the last two are terminal, human-owned states with no node:
 - `status:researcher`
 - `status:engineer`
 - `status:backtester`
 - `status:reviewer`
-- `status:risk_manager`
-- `status:historian`
-- `stage:rejected`
+- `status:done` — code approved by the Reviewer, waiting for the human to merge the PR
+- `status:blocked` — self-correction cap reached, needs human intervention
 
 ### Type labels
 - `type:strategy`
@@ -35,9 +35,10 @@ To be created in `.github/ISSUE_TEMPLATE/`. Fields:
 ## Workflow
 
 1. Manager opens an objective issue (`status:researcher`).
-2. Researcher posts strategy proposal and moves to `status:reviewer`.
-3. Reviewer critiques the spec; if approved, it moves to `status:manager`.
-4. Manager approves implementation; changes status to `status:engineer`.
-5. Engineer implements code and opens a PR; moves to `status:backtester`.
-6. Backtester validates code and JSON contract; if successful, moves to `status:reviewer`.
-7. Reviewer performs qualitative check; if approved, moves to `status:risk_manager`.
+2. Researcher posts the strategy proposal and moves to `status:reviewer`.
+3. Reviewer critiques the spec; if approved it moves straight to `status:engineer` (no human gate).
+4. Engineer implements code, opens a PR, and moves to `status:backtester`.
+5. Backtester validates the interface and JSON contract and runs the code; on success it moves to
+   `status:reviewer`, on failure back to `status:engineer` (capped at 3 attempts, then `status:blocked`).
+6. Reviewer performs the qualitative + risk check on the code; if approved it moves to `status:done`.
+7. Manager merges the PR (the single human gate), which closes the issue.

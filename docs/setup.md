@@ -17,14 +17,14 @@
 
 3. Create a `.env` file (NOT committed) with:
 ```
-   ANTHROPIC_API_KEY=...
    GOOGLE_API_KEY=...
    GITHUB_TOKEN=...
+   GITHUB_REPO=username/trading-bot-team
 ```
 
-   - Anthropic key: https://console.anthropic.com
    - Google AI Studio key: https://aistudio.google.com
    - GitHub PAT (fine-grained, `repo` scope on this repo only): https://github.com/settings/tokens
+   - `GITHUB_REPO` is the `owner/name` slug of the repo the agents operate on.
 
 4. Verify GitHub access:
 ```

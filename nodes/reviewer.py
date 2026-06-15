@@ -43,23 +43,25 @@ def reviewer_node(state: AgentState):
     target_id = state["issue_number"] if is_researcher_fail or not pr else pr.number
     github.post_comment(target_id, f"### 🧐 Reviewer Feedback\n\n{content}")
 
-    # Determine routing based on the decision and the current content
+    # Determine routing based on the decision and the stage we're at.
+    # If a PR exists we are reviewing CODE; otherwise we are reviewing the SPEC.
     if "[APPROVED]" in content.upper():
-        labels = [l.name for l in issue.get_labels()]
-        if "status:reviewer" in labels and pr:
-            next_role = "risk_manager"
+        if pr:
+            # Code approved by the sole AI quality gate — hand to the human to merge.
+            next_role = "done"
         else:
+            # Spec approved — proceed straight to implementation.
             next_role = "engineer"
-
-        github.set_status(state["issue_number"], next_role)
     else:
-        # Determine if we blame the Engineer (bad code) or Researcher (bad strategy)
+        # Rejected: blame the Engineer (bad code) or Researcher (bad strategy).
         if is_researcher_fail:
             next_role = "researcher"
+        elif pr or "```python" in thread_context:
+            next_role = "engineer"
         else:
-            next_role = "engineer" if "```python" in thread_context else "researcher"
+            next_role = "researcher"
 
-        github.set_status(state["issue_number"], next_role)
+    github.set_status(state["issue_number"], next_role)
 
     return {
         "messages": [
