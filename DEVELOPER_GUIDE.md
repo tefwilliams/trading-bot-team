@@ -21,7 +21,6 @@ AI assistants must only create or look for files within this established framewo
 | Directory/File | Responsibility | Rule / Invariant |
 | :--- | :--- | :--- |
 | `/nodes/` | LangGraph node execution logic | Every file must house pure function nodes. |
-| `/tools/` | External agent actions & APIs | Must contain LangChain `@tool` definitions. |
 | `/prompts/` | System prompts & LLM instructions | Isolated from code strings; strictly plain text/markdown. |
 | `/docs/` | System design specifications | Kept high-level; details are offloaded here. |
 | `/scripts/` | Utility & Setup scripts | Non-orchestration helper scripts. |
@@ -36,15 +35,14 @@ AI assistants must only create or look for files within this established framewo
 2. **State Mutation Safety:** Nodes must never overwrite arrays or historical sequences in the state directly. Use appending mechanisms (e.g., `operator.add` for message trackers).
 3. **GitHub-First State Tracking:** Never update `AgentState["current_role"]` manually inside a running node execution. Instead, call `github.set_status(issue_number, "next_role")`. The orchestration loop in `main.py` will ingest this hook and update the graph router dynamically.
 4. **Thread Persistence:** All graph executions must use a `SqliteSaver` checkpointer. The `thread_id` passed to the graph's `config` must always match the `issue_number` to ensure continuity.
+5. **Self-Correction Retry Cap:** `AgentState.backtest_retries` counts consecutive backtest failures per issue. The `Backtester` increments it on every failure route back to the `Engineer`; once it reaches `MAX_BACKTEST_RETRIES` (currently 3) the issue is moved to `status:blocked` instead of retrying. A successful backtest resets it to 0. Do not route back to the engineer without going through this counter.
 
 ---
 
-## 🛠️ Tool Creation & Execution Rules
-
-When generating new capabilities or external APIs for agents:
-- **Decorators:** Always use the `@tool` decorator from `langchain_core.tools`.
-- **Strict Typing:** Every tool must have a robust Pydantic `args_schema` class defined explicitly to prevent model execution halucinations.
-- **Semantic Clarity:** Provide exhaustive docstrings inside the tool function. The LLM relies directly on the tool's docstring to evaluate utility and pass arguments.
+> **Note on tool-calling:** Agents do **not** currently use LangChain tool-calling. Nodes call
+> `github_utils` helpers directly and the LLM only returns text. There is no `/tools/` directory.
+> If tool-calling agents are introduced later, add `/tools/` with `@tool` definitions (Pydantic
+> `args_schema`, exhaustive docstrings) and re-document it here first.
 
 ---
 
@@ -66,3 +64,8 @@ When writing data acquisition scripts using `yfinance`:
   ```python
   if isinstance(df.columns, pd.MultiIndex):
       df.columns = df.columns.get_level_values(0)
+  ```
+
+### 3. Indicator Libraries
+Use `pandas` or `pandas_ta` for indicators. **Never import `talib` / `TA-Lib`** — it is not
+installed in the sandbox and will crash the backtest.

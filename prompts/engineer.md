@@ -15,6 +15,8 @@ REQUIREMENTS:
    - DO NOT use intraday intervals (1m, 5m, 15m, 60m) as they will fail for any backtest period longer than 60 days.
    - If the user asks for "intraday" or "15m", politely explain that we are restricted to Daily data for now and implement using `1d`.
 2. Use `pandas` for data manipulation and signal generation.
+   - For technical indicators (RSI, SMA, ADX, ATR, etc.) use **`pandas_ta`** or compute them directly with pandas.
+   - **DO NOT use `talib` / `TA-Lib`** — it is not installed in the sandbox and any import of it will crash the backtest.
 3. Implement the Entry and Exit rules exactly as described.
 4. Implement the Position Sizing logic.
 5. **INTERFACE REQUIREMENT**: The code must be modular for a multi-strategy engine.

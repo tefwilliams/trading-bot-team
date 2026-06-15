@@ -11,8 +11,14 @@ A multi-agent team that researches, implements, and reviews trading strategies. 
 
 ## The Two-Tier System
 
-1. **Strategy Factory (The Agents):** This is the LangGraph workflow. It produces vetted, backtested Python modules stored in `/strategies`. The deterministic `Backtester` node handles isolated execution and the 3-retry error correction loop.
-2. **Execution Engine (The Combined Bot):** A master script that dynamically loads approved strategies from the `performance_manifest.csv`, handles portfolio-level risk, and executes trades via a unified API (e.g., Alpaca).
+1. **Strategy Factory (The Agents):** This is the LangGraph workflow. It produces vetted, backtested Python modules stored in `/strategies`. The deterministic `Backtester` node handles isolated execution and the 3-retry error correction loop (escalating to `status:blocked` when exhausted).
+2. **Execution Engine (The Combined Bot) — *future*:** A master script that dynamically loads approved strategies, handles portfolio-level risk, and executes trades via a unified API (e.g. Alpaca). This depends on a `performance_manifest.csv` produced by a Historian/archivist role, which is **not part of the current pipeline** (see below).
+
+## Current pipeline scope
+
+The active pipeline is: **Researcher → Reviewer (spec) → Engineer → Backtester → Reviewer (code) → human merge**, with the Backtester ⇄ Engineer self-correction loop in the middle.
+
+The **Risk Manager** and **Historian** roles existed in earlier iterations and are intentionally out of scope for now: risk review has been folded into the Reviewer, and performance-manifest archiving is deferred. The only human gate is the final PR merge.
 
 ## Framework: LangGraph
 

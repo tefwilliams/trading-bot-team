@@ -11,3 +11,7 @@ class AgentState(TypedDict):
     current_role: str
     # Structured metrics from the backtester
     backtest_metrics: Optional[Dict[str, Any]]
+    # Consecutive backtest failures, used to enforce the self-correction retry cap.
+    # Reset to 0 on a successful backtest; when it hits MAX_BACKTEST_RETRIES the
+    # issue is escalated to a human (status:blocked).
+    backtest_retries: int

@@ -11,6 +11,10 @@ from state import AgentState
 
 logger = logging.getLogger(__name__)
 
+# Self-correction cap: after this many consecutive failed backtests the issue is
+# escalated to a human (status:blocked) instead of looping back to the engineer.
+MAX_BACKTEST_RETRIES = 3
+
 
 def validate_interface(code: str) -> list[str]:
     """
@@ -74,19 +78,43 @@ def backtester_node(state: AgentState):
     """
     github = GitHubManager()
     issue_number = state["issue_number"]
+    retries = state.get("backtest_retries", 0) or 0
 
     pr = github.get_related_pr(issue_number)
     target_id = pr.number if pr else issue_number
     results_path = os.path.join(os.getcwd(), f"backtest_results_{issue_number}.json")
+
+    def fail(report: str, log_msg: str):
+        """Post the failure report and route back to the engineer, unless the
+        self-correction retry cap is reached — then escalate to a human."""
+        new_retries = retries + 1
+        github.post_comment(target_id, report)
+
+        if new_retries >= MAX_BACKTEST_RETRIES:
+            github.post_comment(
+                target_id,
+                (
+                    f"### 🚫 Self-Correction Limit Reached\n"
+                    f"The Engineer ⇄ Backtester loop has failed **{new_retries}** times "
+                    f"(cap: {MAX_BACKTEST_RETRIES}). Automatic retries are exhausted.\n\n"
+                    f"This issue has been moved to `status:blocked` and will not be "
+                    f"retried automatically. A human needs to investigate."
+                ),
+            )
+            github.set_status(issue_number, "blocked")
+            log_msg = f"{log_msg} — retry cap reached, escalated to status:blocked"
+        else:
+            github.set_status(issue_number, "engineer")
+
+        return {"messages": [log_msg], "backtest_retries": new_retries}
+
     code = github.get_latest_code_block(issue_number)
 
     if not code:
-        github.post_comment(
-            issue_number,
+        return fail(
             "### ❌ Backtest Failed\nCould not find a Python code block to execute in the PR or comments.",
+            "Backtester failed: No code found",
         )
-        github.set_status(issue_number, "engineer")
-        return {"messages": ["Backtester failed: No code found"]}
 
     # Step 1: Structural Validation
     interface_errors = validate_interface(code)
@@ -99,9 +127,7 @@ def backtester_node(state: AgentState):
             error_msg += f"- {err}\n"
         error_msg += "\n**Note to Engineer:** Please ensure your code includes the required `generate_signals` and `run_backtest` functions."
 
-        github.post_comment(target_id, error_msg)
-        github.set_status(issue_number, "engineer")
-        return {"messages": ["Backtester failed interface validation"]}
+        return fail(error_msg, "Backtester failed interface validation")
 
     github.post_comment(
         target_id,
@@ -147,13 +173,10 @@ def backtester_node(state: AgentState):
             )
             error_report += f"**Standard Error:**\n```\n{result.stderr}\n```\n"
             error_report += f"**Standard Output:**\n```\n{result.stdout}\n```"
-            github.post_comment(target_id, error_report)
-            github.set_status(issue_number, "engineer")
-            return {
-                "messages": [
-                    f"Backtester failed: Runtime error in issue #{issue_number}"
-                ]
-            }
+            return fail(
+                error_report,
+                f"Backtester failed: Runtime error in issue #{issue_number}",
+            )
 
         # Detect silent yfinance download failures
         full_output = result.stdout + result.stderr
@@ -166,13 +189,10 @@ def backtester_node(state: AgentState):
                 error_report += "**Specific Fix Required:** The request for 15m data failed because the range exceeds 60 days. You MUST switch to `interval='1d'` for this backtest window.\n\n"
 
             error_report += f"**Console Output:**\n```\n{result.stdout}\n```"
-            github.post_comment(target_id, error_report)
-            github.set_status(issue_number, "engineer")
-            return {
-                "messages": [
-                    f"Backtester failed: Data download failure in issue #{issue_number}"
-                ]
-            }
+            return fail(
+                error_report,
+                f"Backtester failed: Data download failure in issue #{issue_number}",
+            )
 
         # Parse metrics from the sidecar JSON file
         metrics_data = {}
@@ -192,25 +212,19 @@ def backtester_node(state: AgentState):
             error_msg = "### ❌ Missing Backtest Results\n"
             error_msg += "The script executed but did not write to `BACKTEST_RESULTS_PATH`. You MUST include this at the end of your `run_backtest`:\n\n"
             error_msg += "```python\nimport json, os\nresults = {'total_return': float(ret), 'max_drawdown': float(dd), 'sharpe_ratio': float(sr), 'total_trades': int(len(trades))}\nwith open(os.environ['BACKTEST_RESULTS_PATH'], 'w') as f:\n    json.dump(results, f)\n```"
-            github.post_comment(target_id, error_msg)
-            github.set_status(issue_number, "engineer")
-            return {
-                "messages": [
-                    f"Backtester failed: No JSON output for issue #{issue_number}"
-                ]
-            }
+            return fail(
+                error_msg,
+                f"Backtester failed: No JSON output for issue #{issue_number}",
+            )
 
         # 2. Check for zero-signal strategies
         total_trades = metrics_data.get("total_trades", 0)
         if total_trades == 0:
             error_msg = "### ⚠️ Strategy Inactive\nThe backtest finished with **0 trades**.\n\n**Action Required:** Please simplify entry logic or check if indicators have enough warm-up data."
-            github.post_comment(target_id, error_msg)
-            github.set_status(issue_number, "engineer")
-            return {
-                "messages": [
-                    f"Backtester: Zero trades detected for issue #{issue_number}"
-                ]
-            }
+            return fail(
+                error_msg,
+                f"Backtester: Zero trades detected for issue #{issue_number}",
+            )
 
         # 3. Success: Parse and report metrics
         display_metrics = {
@@ -247,20 +261,20 @@ def backtester_node(state: AgentState):
 
         github.post_comment(target_id, report)
 
-        # Self-Correction Success: Transition to Reviewer for qualitative analysis
+        # Self-Correction Success: Transition to Reviewer for qualitative analysis.
+        # Reset the retry counter so the next correction loop (if any) starts fresh.
         github.set_status(issue_number, "reviewer")
+        return {
+            "messages": [f"Backtester executed code for issue #{issue_number}"],
+            "backtest_metrics": metrics_data,
+            "backtest_retries": 0,
+        }
 
     except subprocess.TimeoutExpired:
-        github.post_comment(
-            target_id,
+        return fail(
             "### ❌ Backtest Timed Out\nThe strategy execution exceeded the 120s limit.",
+            f"Backtester failed: Timeout in issue #{issue_number}",
         )
-        github.set_status(issue_number, "engineer")
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
-
-    return {
-        "messages": [f"Backtester executed code for issue #{issue_number}"],
-        "backtest_metrics": metrics_data,
-    }

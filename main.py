@@ -8,9 +8,7 @@ from state import AgentState
 from nodes.researcher import researcher_node
 from nodes.engineer import engineer_node
 from nodes.reviewer import reviewer_node
-from nodes.risk_manager import risk_manager_node
 from nodes.backtester import backtester_node
-from nodes.historian import historian_node
 
 # Configure logging for professional visibility into agent actions
 logging.basicConfig(
@@ -27,9 +25,7 @@ def create_graph(checkpointer):
     workflow.add_node("researcher", researcher_node)
     workflow.add_node("engineer", engineer_node)
     workflow.add_node("reviewer", reviewer_node)
-    workflow.add_node("risk_manager", risk_manager_node)
     workflow.add_node("backtester", backtester_node)
-    workflow.add_node("historian", historian_node)
 
     # Route to the correct node based on the current role in state
     workflow.add_conditional_edges(
@@ -39,18 +35,14 @@ def create_graph(checkpointer):
             "researcher": "researcher",
             "engineer": "engineer",
             "reviewer": "reviewer",
-            "risk_manager": "risk_manager",
             "backtester": "backtester",
-            "historian": "historian",
         },
     )
 
     workflow.add_edge("researcher", END)
     workflow.add_edge("engineer", END)
     workflow.add_edge("reviewer", END)
-    workflow.add_edge("risk_manager", END)
     workflow.add_edge("backtester", END)
-    workflow.add_edge("historian", END)
 
     return workflow.compile(checkpointer=checkpointer)
 
@@ -68,14 +60,13 @@ def run_orchestrator():
 
     while True:
         try:
-            # Process each role in a standardized loop
+            # Process each active role in a standardized loop.
+            # `done` and `blocked` are terminal human-owned states (no node).
             roles = [
-                "historian",
                 "backtester",
                 "researcher",
                 "engineer",
                 "reviewer",
-                "risk_manager",
             ]
 
             for role in roles:

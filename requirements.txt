@@ -5,9 +5,8 @@ langgraph-checkpoint-sqlite
 langchain-google-genai
 yfinance
 pandas
+numpy<2  # pandas_ta imports `from numpy import NaN`, removed in numpy 2.0
 pandas_ta
 matplotlib
-numpy
 scipy
-ta-lib  # Optional, but often used by quant researchers for indicators
 requests
