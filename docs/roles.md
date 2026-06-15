@@ -1,7 +1,15 @@
 # Agent Roles (Free-Tier Optimized)
 
-All AI roles run on **Gemini 3.1 Flash Lite**. The architecture compensates for the lightweight
-model with rigid checklist prompts and deterministic verification.
+All roles run on Google AI Studio free-tier models, tiered by need (see `llm.py`):
+- **Researcher** → `gemini-3.1-flash-lite` (high quota, divergent ideation), temp 0.7.
+- **Engineer** → `gemini-3-flash` (stronger code generation), temp 0.3.
+- **Reviewer** → `gemini-2.5-pro` (most capable free reasoning, for the sole quality gate), temp 0.0,
+  with an automatic fallback to `gemini-3-flash` on error/throttle.
+
+Note: `gemini-2.5-pro` is free but heavily rate-limited (~5 RPM, 50-100 RPD); the 3.x Pro models are
+paid. Only the Reviewer has a model fallback (it degrades to `gemini-3-flash`); the Researcher and
+Engineer sit on high-quota models and rely on the orchestrator's retry loop. The architecture still
+compensates for lightweight models with rigid checklist prompts and deterministic verification.
 
 ## Manager (Human)
 
@@ -30,8 +38,10 @@ model with rigid checklist prompts and deterministic verification.
   Reviewer owns both correctness and risk. Uses a rigid markdown checklist to evaluate the spec or
   the code for: look-ahead bias, logical flaws, contract compliance, and risk (position sizing,
   stop-loss, slippage/liquidity, overfitting).
-- **Output:** A structured review ending in `[APPROVED]` or `[REJECTED]`. On rejection it tags the
-  responsible role (`[RESEARCHER]` or `[ENGINEER]`) to route the fix. Approved code moves to `status:done`.
+- **Output:** A structured verdict (`decision`, `blame`, `review_markdown`) returned via the model's
+  structured-output mode, so routing never depends on string matching. On rejection `blame`
+  (`researcher`/`engineer`) routes the fix; approved code moves to `status:done`. Rejections are
+  capped per issue (`MAX_REVIEW_REJECTIONS`) before escalating to `status:blocked`.
 
 ## Backtester (Deterministic Node — Not an LLM)
 

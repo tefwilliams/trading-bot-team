@@ -3,6 +3,7 @@ python-dotenv
 langgraph
 langgraph-checkpoint-sqlite
 langchain-google-genai
+pydantic
 yfinance
 pandas
 numpy<2  # pandas_ta imports `from numpy import NaN`, removed in numpy 2.0

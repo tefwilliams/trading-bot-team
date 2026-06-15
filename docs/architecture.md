@@ -46,10 +46,16 @@ Free, has a proper API (PyGithub), and gives a realistic ticket-board feel. Agen
 
 **Constraint:** `thread_id == issue_number`.
 
-## Models: The "Flash Lite" Constraint
+## Models: The Free-Tier Constraint
 
-- **Constraint:** The system operates entirely on **Gemini 3.1 Flash Lite** due to free-tier API limitations.
-- **Architectural Compensation:** Because Flash Lite is a lightweight model, the architecture compensates for its lower reasoning depth via:
+- **Constraint:** The system operates entirely on Google AI Studio **free-tier** models. The 3.x
+  Pro models are paid-only (since April 2026); `gemini-2.5-pro` is still free but heavily
+  rate-limited (~5 RPM, 50-100 RPD), and `gemini-3-flash` is the strongest high-quota free model.
+- **Per-role tiering (see `llm.py`):** Researcher → `gemini-3.1-flash-lite` (cheap, high quota);
+  Engineer → `gemini-3-flash` (code generation); Reviewer → `gemini-2.5-pro` (most capable free
+  reasoning, for the sole quality gate) with an automatic fallback to `gemini-3-flash` when Pro
+  errors or throttles. Mixing models also spreads usage across separate rate-limit quotas.
+- **Architectural Compensation:** Because these are still lightweight models, the architecture compensates for their lower reasoning depth via:
   1. **Aggressive System Instructions:** The `llm.py` wrapper must enforce rigid, checklist-based personas (especially for the Reviewer).
   2. **Linear Execution:** Avoiding infinite agent-to-agent chatter to preserve Requests Per Minute (RPM) limits.
   3. **Deterministic Verification:** Heavy reliance on the Python execution environment (the Backtester) to catch flaws, capped strictly at 3 retries.

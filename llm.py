@@ -1,9 +1,36 @@
 import os
-from typing import Literal
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 load_dotenv()
+
+# Per-role primary model. All are on the Google AI Studio free tier.
+# - Reviewer uses `gemini-2.5-pro`, the most capable *free* reasoning model, because it is the
+#   sole AI quality gate. It is heavily rate-limited (~5 RPM, 50-100 RPD). NB: the 3.x Pro models are paid.
+# - Engineer uses `gemini-3-flash` for stronger code generation.
+# - Researcher uses the cheap, high-quota `gemini-3.1-flash-lite` for divergent ideation.
+DEFAULT_MODEL = "gemini-3.1-flash-lite"
+ROLE_MODELS = {
+    "researcher": "gemini-3.1-flash-lite",
+    "engineer": "gemini-3-flash",
+    "reviewer": "gemini-2.5-pro",
+}
+
+# Per-role fallback model, used only where the primary is rate-limited enough that a graceful
+# *degrade* makes sense. Only the Reviewer qualifies: its free Pro model throttles easily, so it
+# degrades to the high-quota `gemini-3-flash`. The Researcher and Engineer sit on solid high-quota
+# models and rely on the orchestrator's retry loop instead (no "falling up" to a better model).
+ROLE_FALLBACKS = {
+    "reviewer": "gemini-3-flash",
+}
+
+# Per-role sampling temperature. Code generation and critical review want low
+# variance; only the Researcher benefits from creative divergence.
+ROLE_TEMPS = {
+    "researcher": 0.7,
+    "engineer": 0.3,
+    "reviewer": 0.0,
+}
 
 
 def load_prompt(filename: str) -> str:
@@ -16,31 +43,48 @@ def load_prompt(filename: str) -> str:
     return ""
 
 
-def get_llm(role: str, system_instruction: str = None):
+def _build_chat(model_name: str, temp: float, system_instruction: str, structured_output):
+    """Builds a chat model, optionally bound to a structured-output schema."""
+    chat = ChatGoogleGenerativeAI(
+        model=model_name,
+        temperature=temp,
+        model_kwargs={"system_instruction": system_instruction},
+    )
+    if structured_output is not None:
+        return chat.with_structured_output(structured_output)
+    return chat
+
+
+def get_llm(role: str, system_instruction: str = None, structured_output=None):
     """
-    Returns the appropriate LLM based on the agent role defined in docs/roles.md.
-    Now consolidated to Gemini for all roles.
+    Returns the LLM for the given agent role (see docs/roles.md). Model and
+    temperature are selected per role, with sensible defaults for unlisted roles.
+
+    If `structured_output` (a Pydantic model / schema) is given, the model is bound
+    to it so `.invoke()` returns a validated object instead of a message.
+
+    If the role has a ROLE_FALLBACKS entry, the returned runnable degrades to that
+    model on any error (e.g. the Reviewer's rate-limited Pro model dropping to
+    gemini-3-flash). Roles without an entry rely on the orchestrator's retry loop.
     """
-    # 3.1 is the latest version - using it as the team standard for cost/performance.
-    model_name = "gemini-3.1-flash-lite"
+    role_key = role.lower()
+    model_name = ROLE_MODELS.get(role_key, DEFAULT_MODEL)
+    temp = ROLE_TEMPS.get(role_key, 0.0)
 
     # Load system instructions from file or fallback to passed argument.
     # This prioritizes externalized prompts per the Developer Guide.
     if not system_instruction:
         system_instruction = (
-            load_prompt(f"system_{role.lower()}.md")
-            or load_prompt(f"system_{role.lower()}.txt")
+            load_prompt(f"system_{role_key}.md")
+            or load_prompt(f"system_{role_key}.txt")
             or "You are a helpful assistant."
         )
 
-    # Temperature settings based on role
-    if role.lower() in ["researcher", "engineer"]:
-        temp = 0.7
-    else:
-        temp = 0.0
+    primary = _build_chat(model_name, temp, system_instruction, structured_output)
 
-    return ChatGoogleGenerativeAI(
-        model=model_name,
-        temperature=temp,
-        model_kwargs={"system_instruction": system_instruction},
-    )
+    fallback_model = ROLE_FALLBACKS.get(role_key)
+    if fallback_model and fallback_model != model_name:
+        fallback = _build_chat(fallback_model, temp, system_instruction, structured_output)
+        return primary.with_fallbacks([fallback])
+
+    return primary

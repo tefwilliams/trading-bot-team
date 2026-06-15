@@ -12,9 +12,9 @@ end-to-end until the work is ready to merge (`status:done`) or stuck (`status:bl
 ## Phase 1: Ideation & Research
 1. **Manager (Human)** creates an issue labelled `status:researcher`.
 2. **Researcher (AI)** proposes a strategy spec and moves it to `status:reviewer`.
-3. **Reviewer (AI)** critiques the spec against its checklist.
-   - `[APPROVED]` → `status:engineer` (straight to implementation, no human gate).
-   - `[REJECTED]` with `[RESEARCHER]` → back to `status:researcher`.
+3. **Reviewer (AI)** critiques the spec against its checklist and returns a structured verdict.
+   - `approved` → `status:engineer` (straight to implementation, no human gate).
+   - `rejected` (`blame: researcher`) → back to `status:researcher`.
 
 ## Phase 2: Implementation
 1. **Engineer (AI)**:
@@ -31,9 +31,12 @@ end-to-end until the work is ready to merge (`status:done`) or stuck (`status:bl
      is escalated to `status:blocked` for a human to investigate — it is no longer retried
      automatically. A successful backtest resets the counter.
    - **Success:** posts performance metrics and routes to `status:reviewer`.
-2. **Reviewer (AI)** critiques the executed code (correctness, look-ahead bias, and risk).
-   - `[APPROVED]` → `status:done`.
-   - `[REJECTED]` with `[ENGINEER]` → back to `status:engineer`.
+2. **Reviewer (AI)** critiques the executed code (correctness, look-ahead bias, and risk) and
+   returns a structured verdict.
+   - `approved` → `status:done`.
+   - `rejected` (`blame: engineer`) → back to `status:engineer`.
+   - **Review cap:** rejections are counted per issue. After **3** the issue is escalated to
+     `status:blocked`. An approval resets the counter. This bounds both the spec and code review loops.
 
 ## Phase 4: Integration (Human)
 1. The issue sits at `status:done` with a green backtest and an approved review.
