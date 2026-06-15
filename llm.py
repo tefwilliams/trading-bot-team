@@ -4,25 +4,25 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 load_dotenv()
 
-# Per-role primary model. All are on the Google AI Studio free tier. Reasoning effort is
-# concentrated on the *strategy* side (the hard part); implementation is comparatively mechanical:
-# - Strategy Reviewer uses `gemini-2.5-pro`, the most capable *free* reasoning model, for the
-#   spec-soundness and edge judgments. It is heavily rate-limited (~5 RPM, 50-100 RPD) but is
-#   shielded from the implementation-churn loop by the cheaper Code Reviewer. NB: 3.x Pro is paid.
-# - Researcher and Engineer use `gemini-3-flash` (strong, high-quota producers).
+# Per-role primary model. All are on the Google AI Studio free tier. Pro is reserved for the single
+# hardest reasoning task — judging spec soundness — and nothing else:
+# - Strategy Reviewer uses `gemini-2.5-pro` for spec soundness. It fires once per research iteration
+#   (before any code), so its ~5 RPM / 50-100 RPD limit is comfortable; it degrades to `gemini-3-flash`
+#   on error/throttle. NB: the 3.x Pro models are paid.
+# - Researcher, Engineer, and Performance Reviewer use `gemini-3-flash` (strong, high quota).
 # - Code Reviewer uses `gemini-3.1-flash-lite` for the mechanical implementation checks.
 DEFAULT_MODEL = "gemini-3.1-flash-lite"
 ROLE_MODELS = {
     "researcher": "gemini-3-flash",
-    "engineer": "gemini-3-flash",
     "strategy_reviewer": "gemini-2.5-pro",
+    "engineer": "gemini-3-flash",
     "code_reviewer": "gemini-3.1-flash-lite",
+    "performance_reviewer": "gemini-3-flash",
 }
 
 # Per-role fallback model, used only where the primary is rate-limited enough that a graceful
-# *degrade* makes sense. Only the Strategy Reviewer qualifies: its free Pro model throttles easily,
-# so it degrades to the high-quota `gemini-3-flash`. Other roles sit on high-quota models and rely
-# on the orchestrator's retry loop instead (no "falling up" to a better model).
+# *degrade* makes sense. Only the Strategy Reviewer qualifies (its free Pro model throttles easily),
+# so it degrades to the high-quota `gemini-3-flash`. Other roles rely on the orchestrator's retry loop.
 ROLE_FALLBACKS = {
     "strategy_reviewer": "gemini-3-flash",
 }
@@ -31,9 +31,10 @@ ROLE_FALLBACKS = {
 # variance; only the Researcher benefits from creative divergence.
 ROLE_TEMPS = {
     "researcher": 0.7,
-    "engineer": 0.3,
     "strategy_reviewer": 0.0,
+    "engineer": 0.3,
     "code_reviewer": 0.0,
+    "performance_reviewer": 0.0,
 }
 
 
@@ -68,8 +69,8 @@ def get_llm(role: str, system_instruction: str = None, structured_output=None):
     to it so `.invoke()` returns a validated object instead of a message.
 
     If the role has a ROLE_FALLBACKS entry, the returned runnable degrades to that
-    model on any error (e.g. the Strategy Reviewer's rate-limited Pro model dropping
-    to gemini-3-flash). Roles without an entry rely on the orchestrator's retry loop.
+    model on any error (e.g. a rate-limited Pro model dropping to gemini-3-flash).
+    Roles without an entry rely on the orchestrator's retry loop.
     """
     role_key = role.lower()
     model_name = ROLE_MODELS.get(role_key, DEFAULT_MODEL)

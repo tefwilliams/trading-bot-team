@@ -1,16 +1,17 @@
 # Agent Roles (Free-Tier Optimized)
 
-All roles run on Google AI Studio free-tier models, tiered by need (see `llm.py`). Reasoning effort
-is concentrated on the *strategy* side (the hard part); implementation is comparatively mechanical:
-- **Researcher** → `gemini-3-flash` (strong, high-quota producer), temp 0.7.
-- **Strategy Reviewer** → `gemini-2.5-pro` (most capable free reasoning, for spec soundness + edge), temp 0.0, with a fallback to `gemini-3-flash` on error/throttle.
+All roles run on Google AI Studio free-tier models, tiered by need (see `llm.py`). Pro is reserved for
+the single hardest reasoning task — judging spec soundness:
+- **Researcher** → `gemini-3-flash`, temp 0.7.
+- **Strategy Reviewer** → `gemini-2.5-pro` (spec soundness), temp 0.0, with a fallback to `gemini-3-flash`.
 - **Engineer** → `gemini-3-flash` (code generation), temp 0.3.
 - **Code Reviewer** → `gemini-3.1-flash-lite` (mechanical implementation checks), temp 0.0.
+- **Performance Reviewer** → `gemini-3-flash` (edge vs benchmark — largely numeric), temp 0.0.
 
-Note: `gemini-2.5-pro` is free but heavily rate-limited (~5 RPM, 50-100 RPD); the 3.x Pro models are
-paid. The cheap Code Reviewer absorbs the implementation-churn loop, so the Pro Strategy Reviewer is
-only invoked on mechanically-clean code — keeping Pro usage bounded. The architecture still
-compensates for lightweight models with rigid checklist prompts and deterministic verification.
+Note: `gemini-2.5-pro` is heavily rate-limited (~5 RPM, 50-100 RPD), but the Strategy Reviewer fires
+only once per research iteration (at the spec gate, before any code), so the limit is comfortable; it
+degrades to `gemini-3-flash` on error/throttle. The architecture still compensates for lightweight
+models with rigid checklist prompts and deterministic verification.
 
 ## Manager (Human)
 
@@ -28,13 +29,11 @@ compensates for lightweight models with rigid checklist prompts and deterministi
 
 ## Strategy Reviewer
 
-- **Responsibilities:** Owns the *strategy* side of quality. Reviews the spec for soundness
-  (look-ahead bias in the logic, ambiguous rules, overfitting, missing risk controls) and — after
-  the Code Reviewer clears the implementation — judges **edge**: does the backtested strategy beat
-  its buy-and-hold `benchmark_return` with a positive risk-adjusted return? A clean backtest with no
-  edge is rejected. There is no separate Risk Manager, so risk soundness lives here too.
-- **Routing:** rejections always go back to the **Researcher** (flawed hypothesis); spec approval →
-  Engineer, edge approval → `status:done`.
+- **Responsibilities:** Reviews the strategy *specification* for soundness before any code is written
+  — look-ahead bias in the logic, ambiguous rules, overfitting, plausibility of the hypothesis, and
+  risk controls (there is no separate Risk Manager, so risk soundness lives here). This is the hardest
+  reasoning task, so it runs on Pro; it fires once per research iteration.
+- **Routing:** approval → Engineer; rejection → Researcher.
 - **Output:** A structured verdict (`decision`, `review_markdown`) via structured-output mode.
 
 ## Engineer
@@ -50,10 +49,22 @@ compensates for lightweight models with rigid checklist prompts and deterministi
   and checks contract compliance, look-ahead bias **in the code**, faithfulness to the spec,
   correctness, and pandas hygiene. It does NOT judge whether the strategy is a good idea (that's the
   Strategy Reviewer). On the cheap model, it absorbs the Engineer bug-fix churn loop.
-- **Routing:** rejections always go back to the **Engineer**; approval → Strategy Reviewer.
+- **Routing:** rejections always go back to the **Engineer**; approval → Performance Reviewer.
 - **Output:** A structured verdict (`decision`, `review_markdown`) via structured-output mode.
 
-Rejections from both reviewers share a single cumulative per-issue counter; after
+## Performance Reviewer
+
+- **Responsibilities:** Judges **edge** — does the backtested strategy beat its buy-and-hold
+  `benchmark_return` with a positive risk-adjusted return? A clean backtest with no edge is rejected.
+  The judgment is largely numeric, so it runs on the cheaper `gemini-3-flash`.
+- **Routing:** approval → `status:done` (human merges); rejection → Researcher (hypothesis has no edge).
+- **Output:** A structured verdict (`decision`, `review_markdown`) via structured-output mode.
+- **Edge-test caveats:** the benchmark is naive buy-and-hold of the *primary instrument* (not a broad
+  index); transaction costs and slippage are not modelled (so high-churn edge is overstated); and raw
+  return alone can mislead (lower return with much lower drawdown may still be edge). The reviewer is
+  told to weigh risk-adjusted performance, not just "beats benchmark."
+
+Rejections from all three reviewers share a single cumulative per-issue counter; after
 `MAX_REVIEW_REJECTIONS` (5) the issue is escalated to `status:blocked`.
 
 ## Backtester (Deterministic Node — Not an LLM)

@@ -10,25 +10,19 @@ logger = logging.getLogger(__name__)
 
 def strategy_reviewer_node(state: AgentState):
     """
-    Owns the *strategy* side of quality. Reviews the spec (before implementation) and,
-    after the Code Reviewer has cleared the implementation, judges whether the backtested
-    strategy actually has an edge. Runs on the strong (Pro) model. Rejections always go
-    back to the Researcher (a flawed hypothesis); approvals advance the pipeline.
+    Reviews the strategy *specification* for soundness before any code is written — the
+    hardest reasoning task in the pipeline, so it runs on the strong (Pro) model. It fires
+    once per research iteration (at the spec gate), which keeps Pro usage comfortable.
+    Approvals advance to the Engineer; rejections go back to the Researcher.
+    (Edge/performance is judged later by the Performance Reviewer.)
     """
     github = GitHubManager()
     issue = github.get_issue(state["issue_number"])
-    thread_context, pr = build_review_context(github, issue)
-
-    # A PR exists only once the Code Reviewer has passed the implementation, so its
-    # presence tells us whether we're judging the spec or the backtested edge.
-    review_mode = "edge" if pr else "spec"
+    thread_context, _pr = build_review_context(github, issue)
 
     template = load_prompt("strategy_reviewer.md")
     prompt = template.format(
-        title=issue.title,
-        body=issue.body,
-        thread_context=thread_context,
-        review_mode=review_mode.upper(),
+        title=issue.title, body=issue.body, thread_context=thread_context
     )
 
     llm = get_llm("strategy_reviewer", structured_output=ReviewDecision)
@@ -44,25 +38,21 @@ def strategy_reviewer_node(state: AgentState):
         github.set_status(state["issue_number"], "researcher")
         return {"messages": [f"Strategy reviewer errored on issue #{state['issue_number']}"]}
 
-    # Post to the issue so the Researcher sees the critique even when a PR exists.
     github.post_comment(
-        state["issue_number"], f"### 🧠 Strategy Review ({review_mode})\n\n{verdict.review_markdown}"
+        state["issue_number"], f"### 🧠 Strategy Review (spec)\n\n{verdict.review_markdown}"
     )
 
     if verdict.decision == "approved":
-        next_role = "done" if pr else "engineer"
-        github.set_status(state["issue_number"], next_role)
+        github.set_status(state["issue_number"], "engineer")
         return {
-            "messages": [
-                f"Strategy reviewer APPROVED #{state['issue_number']} ({review_mode}); -> {next_role}"
-            ]
+            "messages": [f"Strategy reviewer APPROVED spec #{state['issue_number']}; -> engineer"]
         }
 
     # Rejected -> back to the Researcher (cumulative cap may escalate to status:blocked).
     new_rejections = apply_rejection(github, state, state["issue_number"], "researcher")
     return {
         "messages": [
-            f"Strategy reviewer REJECTED #{state['issue_number']} ({review_mode}); rejection #{new_rejections}"
+            f"Strategy reviewer REJECTED spec #{state['issue_number']}; rejection #{new_rejections}"
         ],
         "review_rejections": new_rejections,
     }

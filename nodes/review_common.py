@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-# Cumulative cap on reviewer rejections per issue, across BOTH reviewers. It is not
+# Cumulative cap on reviewer rejections per issue, across all three reviewers. It is not
 # reset on approval, so an issue is guaranteed to reach status:done or status:blocked
 # within a bounded number of rejections (no infinite review churn).
 MAX_REVIEW_REJECTIONS = 5

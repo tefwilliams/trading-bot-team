@@ -9,10 +9,11 @@ is secondary. The agents do the work; a human reviews and merges.
 
 - **Framework:** [LangGraph](https://langchain-ai.github.io/langgraph/) — stateful agent
   workflow. Here it acts as a thin router: each issue's `status:` label decides which node runs.
-- **Models:** Google AI Studio free tier, tiered by role (see `llm.py`). Reasoning effort goes to the
-  strategy side: Researcher & Engineer on `gemini-3-flash`, the **Strategy Reviewer** (spec soundness
-  + edge) on `gemini-2.5-pro` (with a fallback to `gemini-3-flash`), and the **Code Reviewer**
-  (mechanical implementation checks) on the cheap `gemini-3.1-flash-lite`. The architecture
+- **Models:** Google AI Studio free tier, tiered by role (see `llm.py`). Pro is reserved for the one
+  hardest reasoning task — the **Strategy Reviewer** (spec soundness) runs on `gemini-2.5-pro` (with a
+  fallback to `gemini-3-flash`), firing once per research iteration so its rate limit is comfortable.
+  Researcher, Engineer, and the **Performance Reviewer** (edge vs benchmark) run on `gemini-3-flash`;
+  the **Code Reviewer** (mechanical checks) on the cheaper `gemini-3.1-flash-lite`. The architecture
   compensates for light models with rigid checklist prompts and deterministic verification (the Backtester).
 - **Coordination layer:** GitHub Issues as the ticket board and primary state. Agents read/write
   comments, flip `status:` labels, and open Pull Requests. The human merges.
@@ -39,13 +40,13 @@ graph TD
     Backtester -- "Pass (has results)" --> CodeReview{"Code Reviewer<br/>(implementation · Flash-Lite)"}
 
     CodeReview -- "rejected" --> Engineer
-    CodeReview -- "approved" --> EdgeReview{"Strategy Reviewer<br/>(edge vs benchmark · Pro)"}
+    CodeReview -- "approved" --> PerfReview{"Performance Reviewer<br/>(edge vs benchmark · Flash)"}
 
-    EdgeReview -- "rejected (no edge)" --> Researcher
-    EdgeReview -- "approved" --> Done(("status:done<br/>Human merges PR"))
+    PerfReview -- "rejected (no edge)" --> Researcher
+    PerfReview -- "approved" --> Done(("status:done<br/>Human merges PR"))
 
     CodeReview -. "5 total rejections" .-> Blocked
-    EdgeReview -. "5 total rejections" .-> Blocked
+    PerfReview -. "5 total rejections" .-> Blocked
 ```
 
 ## Agent roles
@@ -53,10 +54,11 @@ graph TD
 | Agent | Type | Responsibility |
 | :--- | :--- | :--- |
 | **Researcher** | LLM | Turns a manager objective into an explicit strategy spec (hypothesis, entry/exit, sizing). |
-| **Strategy Reviewer** | LLM (Pro) | Owns strategy quality: reviews spec soundness (look-ahead, overfitting, risk controls) and, post-backtest, whether the strategy beats its benchmark. Rejections → Researcher. |
+| **Strategy Reviewer** | LLM (Pro) | Reviews the *spec* for soundness (look-ahead in logic, overfitting, vague rules, risk controls) before any code is written. Rejections → Researcher. |
 | **Engineer** | LLM | Translates the approved spec into runnable Python (`pandas` / `pandas_ta` / `yfinance`), commits to a branch, opens a PR. |
 | **Backtester** | Deterministic | Statically validates the interface, runs the code in a sandboxed subprocess, parses metrics, and enforces the 3-retry self-correction cap. |
-| **Code Reviewer** | LLM (Flash-Lite) | Owns implementation quality: contract compliance, look-ahead bias in code, faithfulness to spec, correctness. Rejections → Engineer. Shields the Pro reviewer from bug-fix churn. |
+| **Code Reviewer** | LLM (Flash-Lite) | Owns implementation quality: contract compliance, look-ahead bias in code, faithfulness to spec, correctness. Rejections → Engineer. Absorbs the bug-fix churn loop. |
+| **Performance Reviewer** | LLM (Flash) | Judges *edge*: does the backtested strategy beat its buy-and-hold benchmark on a risk-adjusted basis? Rejections → Researcher; approval → `status:done`. |
 | **Manager** | Human (you) | Sets objectives by opening issues, and performs the final review by merging (or rejecting) the PR. |
 
 The flow has **no intermediate human gates** — agents run end-to-end until the code is either

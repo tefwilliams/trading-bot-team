@@ -46,11 +46,11 @@ def code_reviewer_node(state: AgentState):
     github.post_comment(pr.number, f"### 🔧 Code Review\n\n{verdict.review_markdown}")
 
     if verdict.decision == "approved":
-        # Implementation is sound -> hand to the Strategy Reviewer to judge edge.
-        github.set_status(state["issue_number"], "strategy_reviewer")
+        # Implementation is sound -> hand to the Performance Reviewer to judge edge.
+        github.set_status(state["issue_number"], "performance_reviewer")
         return {
             "messages": [
-                f"Code reviewer APPROVED #{state['issue_number']}; -> strategy_reviewer"
+                f"Code reviewer APPROVED #{state['issue_number']}; -> performance_reviewer"
             ]
         }
 

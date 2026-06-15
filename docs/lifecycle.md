@@ -34,15 +34,15 @@ end-to-end until the work is ready to merge (`status:done`) or stuck (`status:bl
 2. **Code Reviewer (AI)** checks the *implementation* — contract compliance, look-ahead bias in the
    code, faithfulness to the spec, correctness, pandas hygiene. Runs on the cheap model, so it
    absorbs the bug-fix churn loop.
-   - `approved` → `status:strategy_reviewer`.
+   - `approved` → `status:performance_reviewer`.
    - `rejected` → back to `status:engineer` (implementation bug).
-3. **Strategy Reviewer (AI)** judges *edge*: does the backtested strategy beat its buy-and-hold
+3. **Performance Reviewer (AI)** judges *edge*: does the backtested strategy beat its buy-and-hold
    benchmark with a positive risk-adjusted return? A clean backtest with poor performance is a
-   rejection, not a pass. Runs on the strong (Pro) model.
+   rejection, not a pass.
    - `approved` → `status:done`.
    - `rejected` → back to `status:researcher` (the hypothesis has no edge).
 
-**Review cap:** rejections from *both* reviewers accumulate in a single per-issue counter (never
+**Review cap:** rejections from *all three* reviewers accumulate in a single per-issue counter (never
 reset). After **5** the issue is escalated to `status:blocked`. This bounds all review churn.
    - **Review cap:** rejections are counted per issue. After **3** the issue is escalated to
      `status:blocked`. An approval resets the counter. This bounds both the spec and code review loops.

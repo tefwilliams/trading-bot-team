@@ -29,7 +29,7 @@ Work through every item explicitly, marking `PASS`, `FAIL`, or `N/A` with a one-
 ## Decision (fill the structured fields)
 - `decision`:
   - `approved` — the implementation is correct and faithful to the spec (it then goes to the
-    Strategy Reviewer to judge edge).
+    Performance Reviewer to judge edge).
   - `rejected` — any material implementation defect. (It returns to the Engineer to fix.)
 - `review_markdown`: your full review — each item marked PASS/FAIL/N/A, and, if rejected, the precise
   fixes the Engineer must make.
