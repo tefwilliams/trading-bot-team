@@ -9,9 +9,10 @@ is secondary. The agents do the work; a human reviews and merges.
 
 - **Framework:** [LangGraph](https://langchain-ai.github.io/langgraph/) — stateful agent
   workflow. Here it acts as a thin router: each issue's `status:` label decides which node runs.
-- **Model:** Gemini 3.1 Flash Lite (Google) across all roles, for free-tier cost efficiency.
-  The architecture compensates for the light model with rigid checklist prompts and deterministic
-  verification (the Backtester).
+- **Models:** Google AI Studio free tier, tiered by role (see `llm.py`) — Researcher on
+  `gemini-3.1-flash-lite`, Engineer on `gemini-3-flash`, and the Reviewer (sole quality gate) on
+  `gemini-2.5-pro` with an automatic fallback to `gemini-3-flash`. The architecture compensates for
+  light models with rigid checklist prompts and deterministic verification (the Backtester).
 - **Coordination layer:** GitHub Issues as the ticket board and primary state. Agents read/write
   comments, flip `status:` labels, and open Pull Requests. The human merges.
 - **Persistence:** SQLite (`SqliteSaver`) checkpoints LangGraph thread state so internal agent
@@ -24,8 +25,8 @@ graph TD
     Start(("New Strategy Issue<br/>status:researcher")) --> Researcher
     Researcher -- "Proposes spec" --> Reviewer_Spec{"Reviewer<br/>(spec check)"}
 
-    Reviewer_Spec -- "[REJECTED] [RESEARCHER]" --> Researcher
-    Reviewer_Spec -- "[APPROVED]" --> Engineer
+    Reviewer_Spec -- "rejected (researcher)" --> Researcher
+    Reviewer_Spec -- "approved" --> Engineer
 
     Engineer -- "Opens PR" --> Backtester
 
@@ -36,8 +37,9 @@ graph TD
     Backtester -- "3 failures" --> Blocked(("status:blocked<br/>Human investigates"))
     Backtester -- "Pass (has results)" --> Reviewer_Code{"Reviewer<br/>(code check)"}
 
-    Reviewer_Code -- "[REJECTED] [ENGINEER]" --> Engineer
-    Reviewer_Code -- "[APPROVED]" --> Done(("status:done<br/>Human merges PR"))
+    Reviewer_Code -- "rejected (engineer)" --> Engineer
+    Reviewer_Code -- "3 rejections" --> Blocked
+    Reviewer_Code -- "approved" --> Done(("status:done<br/>Human merges PR"))
 ```
 
 ## Agent roles

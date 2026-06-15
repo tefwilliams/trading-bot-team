@@ -19,6 +19,13 @@ REQUIREMENTS:
    - **DO NOT use `talib` / `TA-Lib`** — it is not installed in the sandbox and any import of it will crash the backtest.
 3. Implement the Entry and Exit rules exactly as described.
 4. Implement the Position Sizing logic.
+4b. **LOOK-AHEAD SAFETY (critical):** A signal computed from bar *t* can only be acted on at bar
+   *t+1*. When turning signals into returns you MUST lag the signal by one bar so you never trade
+   on information from the same bar's close:
+   ```python
+   strategy_returns = signals.shift(1) * data["Close"].pct_change()
+   ```
+   Never use `.shift(-1)`, and never fit parameters on the full sample.
 5. **INTERFACE REQUIREMENT**: The code must be modular for a multi-strategy engine.
    - Provide a `generate_signals(data: pd.DataFrame) -> pd.Series` function.
    - This function must return a Series of signals (1 for Long, 0 for Flat, -1 for Short) indexed by timestamp.
@@ -40,11 +47,27 @@ IMPORTANT: Save the strategy to `strategies/strategy_{issue_number}.py`.
 IMPORTANT: If there is previous feedback or a rejected implementation in the history, you MUST address the specific critiques and fix the bugs identified.
 IMPORTANT: Your code will be automatically validated for structural integrity (AST) and executed in a sandbox. Ensure strict compliance with function signatures.
 
+### REFERENCE METRICS BLOCK:
+Compute the four required metrics consistently. Adapt variable names, but keep the formulas —
+small mistakes in Sharpe annualization or drawdown are a common source of rejection:
+```python
+# strategy_returns: daily strategy returns (already lagged via signals.shift(1))
+equity = (1 + strategy_returns.fillna(0)).cumprod()
+total_return = float(equity.iloc[-1] - 1)
+running_max = equity.cummax()
+max_drawdown = float((equity / running_max - 1).min())  # negative number, e.g. -0.23
+std = strategy_returns.std()
+sharpe_ratio = float((strategy_returns.mean() / std) * (252 ** 0.5)) if std and std > 0 else 0.0
+# total_trades = number of completed round trips, i.e. transitions out of a position
+total_trades = int((signals.shift(1).fillna(0) != signals.fillna(0)).sum())
+```
+
 ### SELF-REFLECTION MANDATE:
 Before providing the final code block, perform the following checks:
 1. Does my `run_backtest` use `os.environ['BACKTEST_RESULTS_PATH']`?
 2. Did I include the `if __name__ == "__main__":` block?
 3. Did I flatten the yfinance MultiIndex columns?
 4. Are the JSON keys exactly "total_return", "max_drawdown", "sharpe_ratio", and "total_trades"?
+5. Did I lag signals with `.shift(1)` before computing returns (no look-ahead bias)?
 
 Output ONLY the Python code inside a markdown block.
