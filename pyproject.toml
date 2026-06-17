@@ -1,0 +1,26 @@
+[project]
+name = "trading-bot-team"
+version = "0.1.0"
+description = "A personal learning project: an AI trading 'team' of LLM agents coordinated through GitHub Issues, exploring multi-agent orchestration patterns."
+readme = "README.md"
+requires-python = ">=3.12" # pandas_ta 0.4+ requires >=3.12
+dependencies = [
+    "PyGithub",
+    "python-dotenv",
+    "langgraph",
+    "langgraph-checkpoint-sqlite",
+    "langchain-google-genai",
+    "pydantic",
+    "yfinance",
+    "pandas",
+    "numpy",
+    "pandas_ta>=0.4", # 0.3.x did `from numpy import NaN` (removed in numpy 2.0); 0.4+ supports numpy 2 and Python 3.12/3.13
+    "pypdf",
+    "matplotlib",
+    "scipy",
+    "requests",
+]
+
+# No [build-system]: this is a flat-layout application (scripts at the repo root,
+# not an installable package), so uv treats it as a virtual project — it installs
+# the dependencies into the venv without trying to build/install the project itself.

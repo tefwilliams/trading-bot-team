@@ -91,7 +91,8 @@ exact per-node read/write contract is in [`DEVELOPER_GUIDE.md`](DEVELOPER_GUIDE.
 ## Getting started
 
 ### Prerequisites
-- Python 3.10+
+- [uv](https://docs.astral.sh/uv/) — manages the Python version, virtualenv, and dependencies (`brew install uv`)
+- Python 3.12+ (uv will fetch it automatically if missing; pinned via `.python-version`)
 - GitHub Personal Access Token (fine-grained, `repo` scope on this repo)
 - Google AI Studio (Gemini) API key
 
@@ -103,22 +104,26 @@ exact per-node read/write contract is in [`DEVELOPER_GUIDE.md`](DEVELOPER_GUIDE.
    GITHUB_REPO=username/trading-bot-team
    GOOGLE_API_KEY=your_gemini_key
    ```
-3. Install dependencies:
+3. Install dependencies (creates `.venv` from the locked versions in `uv.lock`):
    ```bash
-   pip install -r requirements.txt
+   uv sync
    ```
 4. Initialise GitHub labels:
    ```bash
-   python scripts/setup_labels.py
+   uv run python scripts/setup_labels.py
    ```
 5. (Optional) seed an example strategy issue:
    ```bash
-   python scripts/create_first_issue.py
+   uv run python scripts/create_first_issue.py
    ```
 6. Start the orchestrator:
    ```bash
-   python main.py
+   uv run python main.py
    ```
+
+> `uv run` executes inside the project venv without needing to activate it. Prefer `uv add <pkg>` /
+> `uv remove <pkg>` over editing `pyproject.toml` by hand — they update `uv.lock` in lockstep.
+> Commit `pyproject.toml` and `uv.lock` together so everyone resolves to identical versions.
 
 ## Documentation
 
