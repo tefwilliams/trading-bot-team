@@ -8,12 +8,13 @@
    cd trading-bot-team
 ```
 
-2. Create a virtualenv and install deps:
+2. Install [uv](https://docs.astral.sh/uv/) (`brew install uv`), then create the venv and install deps:
 ```
-   python -m venv .venv
-   source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-   pip install -r requirements.txt
+   uv sync
 ```
+   This reads `pyproject.toml` + `uv.lock`, fetches Python 3.12 if needed (pinned in `.python-version`),
+   creates `.venv`, and installs the exact locked dependency versions. Run commands with `uv run python ...`
+   (no manual `activate` needed), or `source .venv/bin/activate` if you prefer.
 
 3. Create a `.env` file (NOT committed) with:
 ```
