@@ -4,27 +4,29 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 load_dotenv()
 
-# Per-role primary model. All are on the Google AI Studio free tier. Pro is reserved for the single
-# hardest reasoning task — judging spec soundness — and nothing else:
-# - Strategy Reviewer uses `gemini-2.5-pro` for spec soundness. It fires once per research iteration
-#   (before any code), so its ~5 RPM / 50-100 RPD limit is comfortable; it degrades to `gemini-3-flash`
-#   on error/throttle. NB: the 3.x Pro models are paid.
-# - Researcher, Engineer, and Performance Reviewer use `gemini-3-flash` (strong, high quota).
-# - Code Reviewer uses `gemini-3.1-flash-lite` for the mechanical implementation checks.
+# Per-role primary model. All are on the Google AI Studio free tier. As of April 2026 the Pro series
+# (incl. `gemini-2.5-pro`) was removed from the free tier, so the strongest free model is now
+# `gemini-3.5-flash`. It runs every role that benefits from reasoning:
+# - Strategy Reviewer (the single hardest reasoning task — judging spec soundness), Researcher,
+#   Engineer, and Performance Reviewer all use `gemini-3.5-flash`.
+# - Code Reviewer uses the cheaper `gemini-3.1-flash-lite` for mechanical implementation checks. This
+#   also keeps it on a *separate* per-model rate-limit bucket (~1,500 RPD) from the flash roles, so the
+#   mechanical-review churn doesn't eat into the reasoning roles' quota.
 DEFAULT_MODEL = "gemini-3.1-flash-lite"
 ROLE_MODELS = {
-    "researcher": "gemini-3-flash",
-    "strategy_reviewer": "gemini-2.5-pro",
-    "engineer": "gemini-3-flash",
+    "researcher": "gemini-3.5-flash",
+    "strategy_reviewer": "gemini-3.5-flash",
+    "engineer": "gemini-3.5-flash",
     "code_reviewer": "gemini-3.1-flash-lite",
-    "performance_reviewer": "gemini-3-flash",
+    "performance_reviewer": "gemini-3.5-flash",
 }
 
-# Per-role fallback model, used only where the primary is rate-limited enough that a graceful
-# *degrade* makes sense. Only the Strategy Reviewer qualifies (its free Pro model throttles easily),
-# so it degrades to the high-quota `gemini-3-flash`. Other roles rely on the orchestrator's retry loop.
+# Per-role fallback model, used only where a graceful *degrade* to a different model (and so a
+# separate rate-limit bucket) is worthwhile. The Strategy Reviewer is the most reasoning-sensitive
+# role, so it degrades to `gemini-2.5-flash` if `gemini-3.5-flash` is throttled. Other roles rely on
+# the orchestrator's retry loop.
 ROLE_FALLBACKS = {
-    "strategy_reviewer": "gemini-3-flash",
+    "strategy_reviewer": "gemini-2.5-flash",
 }
 
 # Per-role sampling temperature. Code generation and critical review want low
@@ -69,7 +71,7 @@ def get_llm(role: str, system_instruction: str = None, structured_output=None):
     to it so `.invoke()` returns a validated object instead of a message.
 
     If the role has a ROLE_FALLBACKS entry, the returned runnable degrades to that
-    model on any error (e.g. a rate-limited Pro model dropping to gemini-3-flash).
+    model on any error (e.g. a throttled gemini-3.5-flash dropping to gemini-2.5-flash).
     Roles without an entry rely on the orchestrator's retry loop.
     """
     role_key = role.lower()

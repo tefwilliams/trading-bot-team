@@ -9,12 +9,13 @@ is secondary. The agents do the work; a human reviews and merges.
 
 - **Framework:** [LangGraph](https://langchain-ai.github.io/langgraph/) — stateful agent
   workflow. Here it acts as a thin router: each issue's `status:` label decides which node runs.
-- **Models:** Google AI Studio free tier, tiered by role (see `llm.py`). Pro is reserved for the one
-  hardest reasoning task — the **Strategy Reviewer** (spec soundness) runs on `gemini-2.5-pro` (with a
-  fallback to `gemini-3-flash`), firing once per research iteration so its rate limit is comfortable.
-  Researcher, Engineer, and the **Performance Reviewer** (edge vs benchmark) run on `gemini-3-flash`;
-  the **Code Reviewer** (mechanical checks) on the cheaper `gemini-3.1-flash-lite`. The architecture
-  compensates for light models with rigid checklist prompts and deterministic verification (the Backtester).
+- **Models:** Google AI Studio free tier, tiered by role (see `llm.py`). Since the Pro series left the
+  free tier (April 2026), the strongest free model is `gemini-3.5-flash` — it runs every role that
+  benefits from reasoning: the **Researcher**, the **Strategy Reviewer** (spec soundness, the hardest
+  reasoning task; fallback `gemini-2.5-flash`), the **Engineer**, and the **Performance Reviewer** (edge
+  vs benchmark). The **Code Reviewer** (mechanical checks) runs on the cheaper `gemini-3.1-flash-lite`,
+  which also keeps it on a separate rate-limit bucket from the flash roles. The architecture compensates
+  for light models with rigid checklist prompts and deterministic verification (the Backtester).
 - **Coordination layer:** GitHub Issues as the ticket board and primary state. Agents read/write
   comments, flip `status:` labels, and open Pull Requests. The human merges.
 - **Persistence:** SQLite (`SqliteSaver`) checkpoints LangGraph thread state so internal agent
@@ -25,7 +26,7 @@ is secondary. The agents do the work; a human reviews and merges.
 ```mermaid
 graph TD
     Start(("New Strategy Issue<br/>status:researcher")) --> Researcher
-    Researcher -- "Proposes spec" --> StratReview{"Strategy Reviewer<br/>(spec soundness · Pro)"}
+    Researcher -- "Proposes spec" --> StratReview{"Strategy Reviewer<br/>(spec soundness · Flash)"}
 
     StratReview -- "rejected" --> Researcher
     StratReview -- "approved" --> Engineer
@@ -54,7 +55,7 @@ graph TD
 | Agent | Type | Responsibility |
 | :--- | :--- | :--- |
 | **Researcher** | LLM | Turns a manager objective into an explicit strategy spec (hypothesis, entry/exit, sizing). |
-| **Strategy Reviewer** | LLM (Pro) | Reviews the *spec* for soundness (look-ahead in logic, overfitting, vague rules, risk controls) before any code is written. Rejections → Researcher. |
+| **Strategy Reviewer** | LLM (Flash) | Reviews the *spec* for soundness (look-ahead in logic, overfitting, vague rules, risk controls) before any code is written. Rejections → Researcher. |
 | **Engineer** | LLM | Translates the approved spec into runnable Python (`pandas` / `pandas_ta` / `yfinance`), commits to a branch, opens a PR. |
 | **Backtester** | Deterministic | Statically validates the interface, runs the code in a sandboxed subprocess, parses metrics, and enforces the 3-retry self-correction cap. |
 | **Code Reviewer** | LLM (Flash-Lite) | Owns implementation quality: contract compliance, look-ahead bias in code, faithfulness to spec, correctness. Rejections → Engineer. Absorbs the bug-fix churn loop. |

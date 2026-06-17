@@ -18,7 +18,7 @@ A multi-agent team that researches, implements, and reviews trading strategies. 
 
 The active pipeline is: **Researcher → Strategy Reviewer (spec) → Engineer → Backtester → Code Reviewer → Performance Reviewer (edge) → human merge**, with the Backtester ⇄ Engineer self-correction loop in the middle.
 
-Review is split by concern across three reviewers: the **Strategy Reviewer** (`gemini-2.5-pro`) owns spec soundness, the **Code Reviewer** (`gemini-3.1-flash-lite`) owns implementation correctness, and the **Performance Reviewer** (`gemini-3-flash`) owns edge vs benchmark. The **Risk Manager** and **Historian** roles existed in earlier iterations and are intentionally out of scope for now: risk review has been folded into the Strategy Reviewer, and performance-manifest archiving is deferred. The only human gate is the final PR merge.
+Review is split by concern across three reviewers: the **Strategy Reviewer** (`gemini-3.5-flash`) owns spec soundness, the **Code Reviewer** (`gemini-3.1-flash-lite`) owns implementation correctness, and the **Performance Reviewer** (`gemini-3.5-flash`) owns edge vs benchmark. The **Risk Manager** and **Historian** roles existed in earlier iterations and are intentionally out of scope for now: risk review has been folded into the Strategy Reviewer, and performance-manifest archiving is deferred. The only human gate is the final PR merge.
 
 **Communication channels.** The **issue** is the strategy-level record (spec, reviews, and one "implemented" note per spec) and the **PR** is the implementation log (every Engineer iteration, backtest report, and code review). Each spec attempt gets its own PR: the Performance Reviewer closes the PR when it rejects a strategy, so the next spec opens a fresh one. Each node reads through the matching `github_utils` helper (`get_issue_context` / `get_pr_context` / `get_full_context`) so feedback is always visible to its consumer — see `DEVELOPER_GUIDE.md` for the per-node read/write contract.
 
@@ -50,16 +50,15 @@ Free, has a proper API (PyGithub), and gives a realistic ticket-board feel. Agen
 
 ## Models: The Free-Tier Constraint
 
-- **Constraint:** The system operates entirely on Google AI Studio **free-tier** models. `gemini-3-flash`
-  is the strongest high-quota free model. `gemini-2.5-pro` is the most capable free model but is heavily
-  rate-limited (~5 RPM, 50-100 RPD), so it is used for exactly one role. (The 3.x Pro models are
-  paid-only since April 2026.)
-- **Per-role tiering (see `llm.py`):** Pro is reserved for the single hardest reasoning task. The
-  **Strategy Reviewer** (spec soundness) → `gemini-2.5-pro` (fallback `gemini-3-flash`); it fires once
-  per research iteration, so the rate limit is comfortable. Researcher, Engineer, and the
-  **Performance Reviewer** (edge vs benchmark — largely numeric) → `gemini-3-flash`; the **Code
-  Reviewer** (mechanical checks) → `gemini-3.1-flash-lite`. The cheap Code Reviewer absorbs the
-  Engineer bug-fix churn loop.
+- **Constraint:** The system operates entirely on Google AI Studio **free-tier** models. Since the Pro
+  series left the free tier (April 2026 — `gemini-2.5-pro` and the 3.x Pro models are now paid-only),
+  `gemini-3.5-flash` is the strongest free model available.
+- **Per-role tiering (see `llm.py`):** `gemini-3.5-flash` runs every role that benefits from reasoning —
+  the **Researcher**, the **Strategy Reviewer** (spec soundness, the hardest reasoning task; fallback
+  `gemini-2.5-flash`), the **Engineer**, and the **Performance Reviewer** (edge vs benchmark — largely
+  numeric). The **Code Reviewer** (mechanical checks) → `gemini-3.1-flash-lite`, which is cheaper and
+  sits on a separate rate-limit bucket, so the Engineer bug-fix churn loop it absorbs doesn't eat into
+  the flash roles' quota.
 - **Architectural Compensation:** Because these are still lightweight models, the architecture compensates for their lower reasoning depth via:
   1. **Aggressive System Instructions:** The `llm.py` wrapper must enforce rigid, checklist-based personas (especially for the Reviewer).
   2. **Linear Execution:** Avoiding infinite agent-to-agent chatter to preserve Requests Per Minute (RPM) limits.

@@ -9,7 +9,7 @@ Usage:
     python scripts/smoke_test_llm.py            # LLM checks only (~5 API calls)
     python scripts/smoke_test_llm.py --issue 1  # also read-only GitHub context checks for issue #1
 
-Costs a handful of free-tier calls (one on the rate-limited gemini-2.5-pro). Read-only —
+Costs a handful of free-tier calls (gemini-3.5-flash and gemini-3.1-flash-lite). Read-only —
 it never writes to GitHub.
 """
 

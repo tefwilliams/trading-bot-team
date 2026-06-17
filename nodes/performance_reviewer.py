@@ -15,7 +15,7 @@ def performance_reviewer_node(state: AgentState):
     """
     Judges whether a backtested strategy actually has an *edge* — does it beat its buy-and-hold
     benchmark on a risk-adjusted basis? Runs after the Code Reviewer has cleared the implementation,
-    on the cheaper gemini-3-flash model (the judgment is largely numeric). Approvals reach
+    on gemini-3.5-flash (the judgment is largely numeric). Approvals reach
     status:done (human merges); rejections go back to the Researcher (the hypothesis has no edge).
     """
     github = GitHubManager()

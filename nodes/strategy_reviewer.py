@@ -12,9 +12,9 @@ logger = logging.getLogger(__name__)
 def strategy_reviewer_node(state: AgentState):
     """
     Reviews the strategy *specification* for soundness before any code is written — the
-    hardest reasoning task in the pipeline, so it runs on the strong (Pro) model. It fires
-    once per research iteration (at the spec gate), which keeps Pro usage comfortable.
-    Approvals advance to the Engineer; rejections go back to the Researcher.
+    hardest reasoning task in the pipeline, so it runs on the strongest free model
+    (gemini-3.5-flash, since the Pro series is no longer free). It fires once per research
+    iteration (at the spec gate). Approvals advance to the Engineer; rejections go back to the Researcher.
     (Edge/performance is judged later by the Performance Reviewer.)
     """
     github = GitHubManager()

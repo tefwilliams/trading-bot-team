@@ -1,17 +1,19 @@
 # Agent Roles (Free-Tier Optimized)
 
-All roles run on Google AI Studio free-tier models, tiered by need (see `llm.py`). Pro is reserved for
-the single hardest reasoning task — judging spec soundness:
-- **Researcher** → `gemini-3-flash`, temp 0.7.
-- **Strategy Reviewer** → `gemini-2.5-pro` (spec soundness), temp 0.0, with a fallback to `gemini-3-flash`.
-- **Engineer** → `gemini-3-flash` (code generation), temp 0.3.
+All roles run on Google AI Studio free-tier models, tiered by need (see `llm.py`). Since the Pro series
+left the free tier (April 2026), `gemini-3.5-flash` is the strongest free model and runs every role
+that benefits from reasoning:
+- **Researcher** → `gemini-3.5-flash`, temp 0.7.
+- **Strategy Reviewer** → `gemini-3.5-flash` (spec soundness — the hardest reasoning task), temp 0.0, with a fallback to `gemini-2.5-flash`.
+- **Engineer** → `gemini-3.5-flash` (code generation), temp 0.3.
 - **Code Reviewer** → `gemini-3.1-flash-lite` (mechanical implementation checks), temp 0.0.
-- **Performance Reviewer** → `gemini-3-flash` (edge vs benchmark — largely numeric), temp 0.0.
+- **Performance Reviewer** → `gemini-3.5-flash` (edge vs benchmark — largely numeric), temp 0.0.
 
-Note: `gemini-2.5-pro` is heavily rate-limited (~5 RPM, 50-100 RPD), but the Strategy Reviewer fires
-only once per research iteration (at the spec gate, before any code), so the limit is comfortable; it
-degrades to `gemini-3-flash` on error/throttle. The architecture still compensates for lightweight
-models with rigid checklist prompts and deterministic verification.
+Note: the Code Reviewer runs on the cheaper `gemini-3.1-flash-lite`, which also keeps it on a separate
+per-model rate-limit bucket (~1,500 RPD) from the flash roles, so the Engineer ⇄ Code Reviewer churn
+loop doesn't eat into the reasoning roles' quota. The Strategy Reviewer degrades to `gemini-2.5-flash`
+on error/throttle. The architecture still compensates for lightweight models with rigid checklist
+prompts and deterministic verification.
 
 ## Manager (Human)
 
@@ -65,7 +67,7 @@ models with rigid checklist prompts and deterministic verification.
 
 - **Responsibilities:** Judges **edge** — does the backtested strategy beat its buy-and-hold
   `benchmark_return` with a positive risk-adjusted return? A clean backtest with no edge is rejected.
-  The judgment is largely numeric, so it runs on the cheaper `gemini-3-flash`. Reads the **PR only**
+  The judgment is largely numeric, but it still runs on `gemini-3.5-flash`. Reads the **PR only**
   (metrics + code) and distils its verdict to the issue.
 - **Routing:** approval → posts the verdict on the PR, `status:done` (human merges); rejection →
   notes it on the PR and **closes the PR**, posts a summary to the issue, `status:researcher`.
